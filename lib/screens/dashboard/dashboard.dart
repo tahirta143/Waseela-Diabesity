@@ -731,18 +731,18 @@ class _DashboardBodyState extends State<_DashboardBody> {
                           color: Colors.grey.shade500, fontSize: 13),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.offline_pin_rounded,
-                        color: _teal),
-                    onPressed: () => Navigator.pushReplacement(
-                      context,
-                      PageRouteBuilder(
-                        pageBuilder: (context, _, __) =>
-                        const OfflineDashboardScreen(),
-                        transitionDuration: Duration.zero,
-                      ),
-                    ),
-                  ),
+                  // IconButton(
+                  //   icon: const Icon(Icons.offline_pin_rounded,
+                  //       color: _teal),
+                  //   onPressed: () => Navigator.pushReplacement(
+                  //     context,
+                  //     PageRouteBuilder(
+                  //       pageBuilder: (context, _, __) =>
+                  //       const OfflineDashboardScreen(),
+                  //       transitionDuration: Duration.zero,
+                  //     ),
+                  //   ),
+                  // ),
                 ],
               ),
               const SizedBox(height: 10),

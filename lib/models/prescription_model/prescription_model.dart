@@ -347,6 +347,7 @@ class PrescriptionModel {
   final String doctorName;
   final int? doctorSrlNo;
   final String? receiptId;
+  final String? tokenNumber;
   final String? createdAt;
   
   // Vitals
@@ -377,6 +378,7 @@ class PrescriptionModel {
     required this.doctorName,
     this.doctorSrlNo,
     this.receiptId,
+    this.tokenNumber,
     this.createdAt,
     required this.vitals,
     this.historyExamination,
@@ -399,6 +401,7 @@ class PrescriptionModel {
       'doctor_name': doctorName,
       'doctor_srl_no': doctorSrlNo,
       'receipt_id': receiptId,
+      'token_number': tokenNumber,
       'created_at': createdAt,
       'vitals': vitals,
       'history_examination': historyExamination,
@@ -439,6 +442,7 @@ class PrescriptionModel {
       doctorName: json['doctor_name'] ?? '',
       doctorSrlNo: json['doctor_srl_no'],
       receiptId: json['receipt_id'],
+      tokenNumber: json['token_number']?.toString() ?? json['tokenNumber']?.toString(),
       createdAt: json['created_at'],
       vitals: (json['vitals'] as Map? ?? {}).map(
         (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),

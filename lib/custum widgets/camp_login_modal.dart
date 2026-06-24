@@ -275,6 +275,7 @@ class _CampLoginModalState extends State<CampLoginModal> {
             )
           else
             DropdownButtonFormField<String>(
+              isExpanded: true,
               value: _selectedCampId,
               decoration: InputDecoration(
                 filled: true,

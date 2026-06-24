@@ -218,7 +218,11 @@ class _LabValuesScreenState extends State<LabValuesScreen> {
               initialValue: patient?.phoneNumber, readOnly: true,
               width: constraints.maxWidth * (isMobile ? 1 : 0.18)),
             _buildInfoField('Consultant', '', 
-              initialValue: provider.doctorName != null ? 'Dr. ${provider.doctorName}' : '', readOnly: true,
+              initialValue: provider.doctorName != null 
+                  ? ((provider.doctorName!.toLowerCase().startsWith('dr.') || provider.doctorName!.toLowerCase().startsWith('dr '))
+                      ? provider.doctorName
+                      : 'Dr. ${provider.doctorName}')
+                  : '', readOnly: true,
               width: constraints.maxWidth * (isMobile ? 1 : 0.18)),
           ],
         );

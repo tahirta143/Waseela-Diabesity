@@ -33,11 +33,14 @@ class _CustomDrawerState extends State<CustomDrawer> {
   static const List<int> _prescriptionIndices = [9, 13, 14, 15, 16];
   // Pharmacy dropdown indices: 17, 18, 19, 20
   static const List<int> _pharmacyIndices = [17, 18, 19, 20];
+  // Attendance dropdown indices: 24, 25
+  static const List<int> _attendanceIndices = [24, 25];
 
   late bool _opdExpanded;
   late bool _reportsExpanded;
   late bool _prescriptionExpanded;
   late bool _pharmacyExpanded;
+  late bool _attendanceExpanded;
 
   @override
   void initState() {
@@ -47,6 +50,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
     _reportsExpanded = _reportsIndices.contains(widget.selectedIndex);
     _prescriptionExpanded = _prescriptionIndices.contains(widget.selectedIndex);
     _pharmacyExpanded = _pharmacyIndices.contains(widget.selectedIndex);
+    _attendanceExpanded = _attendanceIndices.contains(widget.selectedIndex);
   }
 
   Future<void> _handleLogout(BuildContext context) async {
@@ -124,6 +128,21 @@ class _CustomDrawerState extends State<CustomDrawer> {
           icon: Icons.timelapse_outlined,
           title: 'Appointment Reports',
           index: 11,
+        ),
+    ];
+
+    // ── Visible Attendance sub-items ─────────────────────────────────────────
+    final List<_DrawerItemData> attendanceItems = [
+      const _DrawerItemData(
+        icon: Icons.fingerprint_rounded,
+        title: 'Mark Attendance',
+        index: 24,
+      ),
+      if (perm.role?.toLowerCase() == 'admin' || perm.isAdmin)
+        const _DrawerItemData(
+          icon: Icons.assessment_outlined,
+          title: 'Attendance Report',
+          index: 25,
         ),
     ];
 
@@ -428,6 +447,27 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     ),
                   if (_reportsExpanded)
                     ...reportItems.map(
+                      (item) => _buildSubDrawerItem(
+                        icon: item.icon,
+                        title: item.title,
+                        index: item.index,
+                      ),
+                    ),
+
+                  // ── Attendance Dropdown ────────────────────────────────────
+                  if (attendanceItems.isNotEmpty)
+                    _buildGroupHeader(
+                      icon: Icons.calendar_today_outlined,
+                      title: 'Attendance',
+                      isExpanded: _attendanceExpanded,
+                      hasActiveChild: _attendanceIndices.contains(
+                        widget.selectedIndex,
+                      ),
+                      onTap: () =>
+                          setState(() => _attendanceExpanded = !_attendanceExpanded),
+                    ),
+                  if (_attendanceExpanded)
+                    ...attendanceItems.map(
                       (item) => _buildSubDrawerItem(
                         icon: item.icon,
                         title: item.title,

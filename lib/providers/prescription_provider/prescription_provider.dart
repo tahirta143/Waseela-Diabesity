@@ -995,6 +995,7 @@ class PrescriptionProvider extends ChangeNotifier {
         doctorName: resolvedDoctorName,
         doctorSrlNo: doctorSrlNo,
         receiptId: _receiptId,
+        tokenNumber: _tokenNumber,
         vitals: vitalControllers.map((key, controller) => MapEntry(key, controller.text)),
         historyExamination: isEye ? (presentingComplaintsCtrl.text.isEmpty ? null : presentingComplaintsCtrl.text) : (noteControllers['history']?.text.isEmpty ?? true ? null : noteControllers['history']!.text),
         treatment: isEye ? (_eyeTreatmentType.isEmpty ? null : _eyeTreatmentType) : (noteControllers['treatment']?.text.isEmpty ?? true ? null : noteControllers['treatment']!.text),

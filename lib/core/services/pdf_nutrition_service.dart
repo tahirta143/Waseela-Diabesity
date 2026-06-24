@@ -55,6 +55,11 @@ class PDFNutritionService {
       dateStr = DateFormat('dd MMM yyyy - hh:mm a').format(DateTime.now());
     }
 
+    final rawDoc = rx.doctorName.trim();
+    final cleanDocName = (rawDoc.toLowerCase().startsWith('dr.') || rawDoc.toLowerCase().startsWith('dr '))
+        ? rawDoc
+        : (rawDoc.isEmpty ? '—' : 'Dr. $rawDoc');
+
     return pw.Container(
       padding: const pw.EdgeInsets.only(bottom: 10),
       decoration: const pw.BoxDecoration(
@@ -66,7 +71,7 @@ class PDFNutritionService {
           pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text('Dr. ${rx.doctorName}', style: pw.TextStyle(font: fontBold, fontSize: 16, color: PdfColors.blue900)),
+              pw.Text(cleanDocName, style: pw.TextStyle(font: fontBold, fontSize: 16, color: PdfColors.blue900)),
               pw.Text('Clinical Nutritionist', style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey700)),
             ],
           ),

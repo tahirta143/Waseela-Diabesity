@@ -35,6 +35,8 @@ import '../../custum widgets/search/global_search_overlay.dart';
 import '../../providers/mr_provider/mr_provider.dart';
 import '../../providers/camp_provider.dart';
 import '../../screens/camp/camp_dashboard_screen.dart';
+import '../../screens/attendance/attendance_screen.dart';
+import '../../screens/attendance/attendance_report_screen.dart';
 
 
 // ─── FIX: Convert BaseScaffold from StatelessWidget to StatefulWidget ─────────
@@ -444,6 +446,12 @@ class _BaseScaffoldState extends State<BaseScaffold> {
         break;
       case 23:
         screen = const ComplaintsBoardScreen();
+        break;
+      case 24:
+        screen = const AttendanceScreen();
+        break;
+      case 25:
+        screen = const AttendanceReportScreen();
         break;
       case 100:
         screen = const SyncDashboardScreen();

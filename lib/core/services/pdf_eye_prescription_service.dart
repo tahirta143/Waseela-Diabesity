@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -23,8 +24,8 @@ const _vitalsExcludeKeys = {'receiptId', 'receipt_id'};
 
 class PDFEyePrescriptionService {
   static Future<void> sharePrescription(PrescriptionModel rx, PatientModel patient,
-      {List<FundusRecord>? recentFundusRecords}) async {
-    final pdf = await _generateDocument(rx, patient, recentFundusRecords: recentFundusRecords);
+      {List<FundusRecord>? recentFundusRecords, String? campName}) async {
+    final pdf = await _generateDocument(rx, patient, recentFundusRecords: recentFundusRecords, campName: campName);
     await Printing.sharePdf(
       bytes: await pdf.save(),
       filename: 'Prescription_${rx.mrNumber}.pdf',
@@ -32,7 +33,7 @@ class PDFEyePrescriptionService {
   }
 
   static Future<pw.Document> _generateDocument(PrescriptionModel rx, PatientModel patient,
-      {List<FundusRecord>? recentFundusRecords}) async {
+      {List<FundusRecord>? recentFundusRecords, String? campName}) async {
     // ignore: avoid_print
     print('📄 [PDFEyePrescriptionService] Generating document. Medicines: ${rx.medicines.length}');
 
@@ -40,14 +41,31 @@ class PDFEyePrescriptionService {
     final font = pw.Font.helvetica();
     final fontBold = pw.Font.helveticaBold();
 
+    pw.MemoryImage? logoImage;
+    pw.MemoryImage? logo2Image;
+    try {
+      final logoBytes = await rootBundle.load('assets/images/logo.png');
+      logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
+    } catch (e) {
+      // ignore: avoid_print
+      print('Warning: failed to load assets/images/logo.png: $e');
+    }
+    try {
+      final logo2Bytes = await rootBundle.load('assets/images/logo_2.jpeg');
+      logo2Image = pw.MemoryImage(logo2Bytes.buffer.asUint8List());
+    } catch (e) {
+      // ignore: avoid_print
+      print('Warning: failed to load assets/images/logo_2.jpeg: $e');
+    }
+
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.fromLTRB(20, 20, 20, 30),
-        footer: (pw.Context context) => _buildFooter(context, font),
+        footer: (pw.Context context) => _buildFooter(context, font, campName: campName),
         build: (pw.Context context) => [
           // ── Header ────────────────────────────────────────────────────────
-          _buildHeader(rx, patient, font, fontBold),
+          _buildHeader(rx, patient, font, fontBold, logoImage, logo2Image),
           pw.SizedBox(height: 8),
 
           // ── Patient strip ─────────────────────────────────────────────────
@@ -153,9 +171,9 @@ class PDFEyePrescriptionService {
   }
 
   static Future<void> printPrescription(PrescriptionModel rx, PatientModel patient,
-      {List<FundusRecord>? recentFundusRecords}) async {
+      {List<FundusRecord>? recentFundusRecords, String? campName}) async {
     try {
-      final pdf = await _generateDocument(rx, patient, recentFundusRecords: recentFundusRecords);
+      final pdf = await _generateDocument(rx, patient, recentFundusRecords: recentFundusRecords, campName: campName);
       await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => pdf.save(),
         name: 'Prescription_${rx.mrNumber}.pdf',
@@ -176,9 +194,35 @@ class PDFEyePrescriptionService {
       [rx.historyExamination, rx.treatment, rx.consultantNotes, rx.remarks]
           .any((n) => n != null && n.isNotEmpty);
 
-  // ─── Header (3-column: Doctor | Hospital | Meta) ──────────────────────────
-  static pw.Widget _buildHeader(PrescriptionModel rx, PatientModel patient, pw.Font font, pw.Font fontBold) {
-    final dateStr = DateFormat('dd MMM yyyy - hh:mm a').format(DateTime.now());
+  static String _formatDoctorName(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return '—';
+    if (trimmed.toLowerCase().startsWith('dr.') || trimmed.toLowerCase().startsWith('dr ')) {
+      return trimmed;
+    }
+    return 'Dr. $trimmed';
+  }
+
+  // ─── Header (logos + hospital + metadata alignment) ──────────────────────────
+  static pw.Widget _buildHeader(
+    PrescriptionModel rx,
+    PatientModel patient,
+    pw.Font font,
+    pw.Font fontBold,
+    pw.MemoryImage? logoImage,
+    pw.MemoryImage? logo2Image,
+  ) {
+    String dateStr;
+    if (rx.createdAt != null && rx.createdAt!.isNotEmpty) {
+      try {
+        final parsed = DateTime.parse(rx.createdAt!);
+        dateStr = DateFormat('dd MMM yyyy - hh:mm a').format(parsed.toLocal());
+      } catch (_) {
+        dateStr = rx.createdAt!;
+      }
+    } else {
+      dateStr = DateFormat('dd MMM yyyy - hh:mm a').format(DateTime.now());
+    }
 
     return pw.Container(
       padding: const pw.EdgeInsets.only(bottom: 10),
@@ -189,43 +233,61 @@ class PDFEyePrescriptionService {
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          // Left: Doctor
-          pw.Column(
+          // Left: Logos & Hospital Info
+          pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.SizedBox(height: 18),
-              pw.Text('Dr. ${rx.doctorName}',
-                  style: pw.TextStyle(font: fontBold, fontSize: 14, color: PdfColors.blue900)),
-              pw.Text('Medical Officer',
-                  style: pw.TextStyle(font: font, fontSize: 9, color: PdfColors.grey700)),
+              if (logoImage != null) ...[
+                pw.Image(logoImage, height: 40),
+                pw.SizedBox(width: 6),
+              ],
+              if (logo2Image != null) ...[
+                pw.Image(logo2Image, height: 40),
+                pw.SizedBox(width: 8),
+              ],
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text('WASEELA DIABESITY CLINIC',
+                      style: pw.TextStyle(font: fontBold, fontSize: 16, color: PdfColors.blue900)),
+                  pw.Text('OPD Prescription',
+                      style: pw.TextStyle(font: font, fontSize: 9, color: PdfColors.grey700)),
+                  pw.SizedBox(height: 4),
+                  pw.Text(_formatDoctorName(rx.doctorName),
+                      style: pw.TextStyle(font: fontBold, fontSize: 11, color: PdfColors.blue900)),
+                  pw.Text('Medical Officer',
+                      style: pw.TextStyle(font: font, fontSize: 8, color: PdfColors.grey700)),
+                ],
+              ),
             ],
           ),
 
-          // Center: Hospital (absolute center)
-          pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.center,
-            children: [
-              pw.Text('HEALTH CARE HOSPITAL',
-                  style: pw.TextStyle(font: fontBold, fontSize: 18, color: PdfColors.blue900)),
-              pw.Text('OPD PRESCRIPTION',
-                  style: pw.TextStyle(font: font, fontSize: 9, letterSpacing: 2, color: PdfColors.grey700)),
-            ],
-          ),
-
-          // Right: Meta (MR, Date, Receipt/Token)
+          // Right: Meta (MR, Date, Token, Receipt)
           pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: [
-              pw.SizedBox(height: 18),
               pw.RichText(
                 text: pw.TextSpan(children: [
                   pw.TextSpan(text: 'MR.No: ', style: pw.TextStyle(font: font, fontSize: 9)),
                   pw.TextSpan(text: rx.mrNumber, style: pw.TextStyle(font: fontBold, fontSize: 9)),
                 ]),
               ),
-              pw.Text('Date: $dateStr', style: pw.TextStyle(font: font, fontSize: 8)),
-              if (rx.receiptId != null && rx.receiptId!.isNotEmpty)
-                pw.Text('Receipt: ${rx.receiptId}', style: pw.TextStyle(font: font, fontSize: 8)),
+              pw.SizedBox(height: 2),
+              pw.RichText(
+                text: pw.TextSpan(children: [
+                  pw.TextSpan(text: 'Date: ', style: pw.TextStyle(font: font, fontSize: 8)),
+                  pw.TextSpan(text: dateStr, style: pw.TextStyle(font: fontBold, fontSize: 8)),
+                ]),
+              ),
+              pw.SizedBox(height: 2),
+              pw.RichText(
+                text: pw.TextSpan(children: [
+                  pw.TextSpan(text: 'Token: ', style: pw.TextStyle(font: font, fontSize: 8)),
+                  pw.TextSpan(text: rx.tokenNumber ?? '—', style: pw.TextStyle(font: fontBold, fontSize: 8)),
+                  pw.TextSpan(text: '  |  Receipt: ', style: pw.TextStyle(font: font, fontSize: 8)),
+                  pw.TextSpan(text: rx.receiptId ?? '—', style: pw.TextStyle(font: fontBold, fontSize: 8)),
+                ]),
+              ),
             ],
           ),
         ],
@@ -234,7 +296,7 @@ class PDFEyePrescriptionService {
   }
 
   // ─── Patient Strip (matches React patient-bar grid) ────────────────────────
-  // Fields: Patient Name | Gender | Age | OPD/Doctor | Phone | Father/Husband
+  // Fields: Patient Name | Gender | Age | OPD/Doctor | Phone | Father/Husb
   static pw.Widget _buildPatientStrip(PrescriptionModel rx, PatientModel patient, pw.Font font, pw.Font fontBold) {
     final fullName = patient.fullName.isNotEmpty ? patient.fullName : (patient.firstName.isNotEmpty ? patient.firstName : '-');
     final age = patient.age != null ? '${patient.age} yrs' : '-';
@@ -244,9 +306,9 @@ class PDFEyePrescriptionService {
       _PField('Patient Name', fullName),
       _PField('Gender', patient.gender.isNotEmpty ? patient.gender : '-'),
       _PField('Age', age),
-      _PField('OPD / Doctor', rx.doctorName.isNotEmpty ? 'Dr. ${rx.doctorName}' : '-'),
+      _PField('OPD/Doctor', rx.doctorName.isNotEmpty ? _formatDoctorName(rx.doctorName) : '-'),
       _PField('Phone', patient.phoneNumber.isNotEmpty ? patient.phoneNumber : '-'),
-      _PField('Father/Husband', guardian),
+      _PField('Father/Husb', guardian),
     ];
 
     // 3-column grid layout matching React patient-bar
@@ -678,18 +740,36 @@ class PDFEyePrescriptionService {
   }
 
   // ─── Footer ───────────────────────────────────────────────────────────────
-  static pw.Widget _buildFooter(pw.Context context, pw.Font font) {
-    return pw.Container(
-      alignment: pw.Alignment.center,
-      margin: const pw.EdgeInsets.only(top: 10),
-      padding: const pw.EdgeInsets.only(top: 4),
-      decoration: const pw.BoxDecoration(
-        border: pw.Border(top: pw.BorderSide(color: PdfColors.grey400, width: 0.5)),
-      ),
-      child: pw.Text(
-        'This report is not meant to be used for medicolegal purpose(s).',
-        style: pw.TextStyle(font: font, fontSize: 8, color: PdfColors.grey500),
-      ),
+  static pw.Widget _buildFooter(pw.Context context, pw.Font font, {String? campName}) {
+    return pw.Column(
+      mainAxisSize: pw.MainAxisSize.min,
+      children: [
+        if (campName != null && campName.isNotEmpty)
+          pw.Container(
+            alignment: pw.Alignment.bottomRight,
+            padding: const pw.EdgeInsets.only(bottom: 8),
+            child: pw.Text(
+              campName.toUpperCase(),
+              style: pw.TextStyle(
+                font: font,
+                fontSize: 22,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.grey900,
+              ),
+            ),
+          ),
+        pw.Container(
+          alignment: pw.Alignment.center,
+          padding: const pw.EdgeInsets.only(top: 4),
+          decoration: const pw.BoxDecoration(
+            border: pw.Border(top: pw.BorderSide(color: PdfColors.grey400, width: 0.5)),
+          ),
+          child: pw.Text(
+            'This report is not meant to be used for medicolegal purpose(s).',
+            style: pw.TextStyle(font: font, fontSize: 8, color: PdfColors.grey500),
+          ),
+        ),
+      ],
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../custum widgets/drawer/base_scaffold.dart';
+import '../../providers/camp_provider.dart';
 import '../../providers/prescription_provider/prescription_provider.dart';
 import '../../providers/eye_provider/fundus_provider.dart';
 import '../../models/eye_model/fundus_examination_model.dart';
@@ -1495,7 +1496,9 @@ class _OldVisitCard extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: kTextDark),
                     ),
                     Text(
-                      'Dr. ${rx.doctorName}',
+                      (rx.doctorName.toLowerCase().startsWith('dr.') || rx.doctorName.toLowerCase().startsWith('dr '))
+                          ? rx.doctorName
+                          : 'Dr. ${rx.doctorName}',
                       style: const TextStyle(fontSize: 10, color: kTextMid),
                     ),
                   ],
@@ -1760,6 +1763,7 @@ class _EyeSavePrintButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final perm = context.read<PermissionProvider>();
+    final camp = context.watch<CampProvider>();
     return Container(
       padding: const EdgeInsets.all(16),
       width: double.infinity,
@@ -1800,7 +1804,25 @@ class _EyeSavePrintButton extends StatelessWidget {
                     // IMPORTANT: We MUST NOT show a SnackBar here. 
                     // The Printing.layoutPdf dialog pauses the app immediately.
                     // If a SnackBar is animating when the app pauses, Flutter crashes.
-                    await PDFEyePrescriptionService.printPrescription(rx, patient, recentFundusRecords: recentFundus);
+                    String? campInfo;
+                    if (camp.isCampMode) {
+                      final name = camp.campDisplayName;
+                      final loc = camp.campLocation;
+                      final phone = camp.activeCamp?['phone'] ?? camp.activeCamp?['contact_no'];
+                      
+                      final buffer = StringBuffer(name);
+                      if (loc.isNotEmpty) {
+                        if (buffer.isNotEmpty) buffer.write(', ');
+                        buffer.write(loc);
+                      }
+                      if (phone != null && phone.toString().isNotEmpty) {
+                        buffer.write(' (${phone.toString()})');
+                      }
+                      campInfo = buffer.toString();
+                    }
+                    
+                    await PDFEyePrescriptionService.printPrescription(rx, patient, 
+                        recentFundusRecords: recentFundus, campName: campInfo);
                   }
 
                 } else {
@@ -1847,7 +1869,23 @@ class _EyeSavePrintButton extends StatelessWidget {
                 if (success) {
                   final rx = provider.lastSavedPrescription;
                   if (rx != null && patient != null) {
-                    await PDFEyePrescriptionService.sharePrescription(rx, patient);
+                    String? campInfo;
+                    if (camp.isCampMode) {
+                      final name = camp.campDisplayName;
+                      final loc = camp.campLocation;
+                      final phone = camp.activeCamp?['phone'] ?? camp.activeCamp?['contact_no'];
+                      
+                      final buffer = StringBuffer(name);
+                      if (loc.isNotEmpty) {
+                        if (buffer.isNotEmpty) buffer.write(', ');
+                        buffer.write(loc);
+                      }
+                      if (phone != null && phone.toString().isNotEmpty) {
+                        buffer.write(' (${phone.toString()})');
+                      }
+                      campInfo = buffer.toString();
+                    }
+                    await PDFEyePrescriptionService.sharePrescription(rx, patient, campName: campInfo);
                   }
                 } else {
                   WidgetsBinding.instance.addPostFrameCallback((_) {

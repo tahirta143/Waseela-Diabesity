@@ -3156,7 +3156,11 @@ class _OpdReceiptScreenState extends State<OpdReceiptScreen> {
                 title: Text(
                   showingDoctor
                       ? (a.patientName.isNotEmpty ? a.patientName : 'MR: ${a.mrNumber}')
-                      : (a.doctorName.isNotEmpty ? 'Dr. ${a.doctorName}' : 'Consultant'),
+                      : (a.doctorName.isNotEmpty
+                          ? ((a.doctorName.toLowerCase().startsWith('dr.') || a.doctorName.toLowerCase().startsWith('dr '))
+                              ? a.doctorName
+                              : 'Dr. ${a.doctorName}')
+                          : 'Consultant'),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
@@ -3172,7 +3176,11 @@ class _OpdReceiptScreenState extends State<OpdReceiptScreen> {
                           style: const TextStyle(fontSize: 11)),
                       Text(
                         showingDoctor
-                            ? (a.doctorName.isNotEmpty ? 'Dr. ${a.doctorName}' : '---')
+                            ? (a.doctorName.isNotEmpty
+                                ? ((a.doctorName.toLowerCase().startsWith('dr.') || a.doctorName.toLowerCase().startsWith('dr '))
+                                    ? a.doctorName
+                                    : 'Dr. ${a.doctorName}')
+                                : '---')
                             : (a.doctorSpecialization.isNotEmpty ? a.doctorSpecialization : '---'),
                         style: const TextStyle(fontSize: 10, color: _textMid),
                       ),

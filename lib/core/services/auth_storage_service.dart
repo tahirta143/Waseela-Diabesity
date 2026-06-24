@@ -99,6 +99,27 @@ class AuthStorageService {
     return int.tryParse(v ?? '0') ?? 0;
   }
 
+  // ─── Local Attendance Clocking Times ────────────────────────────────
+  Future<void> saveLocalTimeIn(String date, String time) async {
+    try {
+      await _storage.write(key: 'local_time_in_$date', value: time);
+    } catch (_) {}
+  }
+
+  Future<String?> getLocalTimeIn(String date) async {
+    return await _safeRead('local_time_in_$date');
+  }
+
+  Future<void> saveLocalTimeOut(String date, String time) async {
+    try {
+      await _storage.write(key: 'local_time_out_$date', value: time);
+    } catch (_) {}
+  }
+
+  Future<String?> getLocalTimeOut(String date) async {
+    return await _safeRead('local_time_out_$date');
+  }
+
   // ─── Clear on logout ────────────────────────────────────────────────
   Future<void> clearAll() async {
     try {

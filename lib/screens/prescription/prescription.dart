@@ -263,6 +263,7 @@ class _SavePrintButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final perm = context.read<PermissionProvider>();
+    final camp = context.watch<CampProvider>();
     return SizedBox(
       width: double.infinity,
       height: isTablet ? 52 : 48,
@@ -280,7 +281,24 @@ class _SavePrintButton extends StatelessWidget {
           if (success && patient != null) {
             final rx = provider.lastSavedPrescription;
             if (rx != null) {
-              await PDFEyePrescriptionService.printPrescription(rx, patient);
+              String? campInfo;
+              if (camp.isCampMode) {
+                final name = camp.campDisplayName;
+                final loc = camp.campLocation;
+                // Try to find a phone number in the activeCamp map if it exists
+                final phone = camp.activeCamp?['phone'] ?? camp.activeCamp?['contact_no'];
+                
+                final buffer = StringBuffer(name);
+                if (loc.isNotEmpty) {
+                  if (buffer.isNotEmpty) buffer.write(', ');
+                  buffer.write(loc);
+                }
+                if (phone != null && phone.toString().isNotEmpty) {
+                  buffer.write(' (${phone.toString()})');
+                }
+                campInfo = buffer.toString();
+              }
+              await PDFEyePrescriptionService.printPrescription(rx, patient, campName: campInfo);
             }
           }
           if (context.mounted) {
@@ -1848,11 +1866,17 @@ class _VisitRow extends StatelessWidget {
       Text('#${visit.receiptId}', style: const TextStyle(fontSize: 9, color: kTextMid)),
   ]);
 
-  Widget _doctorCell() => Text(
-    visit.doctorName.isNotEmpty ? visit.doctorName : '—',
-    style: const TextStyle(fontSize: 11, color: Color(0xFF374151)),
-    overflow: TextOverflow.ellipsis, maxLines: 2,
-  );
+  Widget _doctorCell() {
+    final raw = visit.doctorName.trim();
+    final name = raw.isEmpty 
+        ? '—' 
+        : ((raw.toLowerCase().startsWith('dr.') || raw.toLowerCase().startsWith('dr ')) ? raw : 'Dr. $raw');
+    return Text(
+      name,
+      style: const TextStyle(fontSize: 11, color: const Color(0xFF374151)),
+      overflow: TextOverflow.ellipsis, maxLines: 2,
+    );
+  }
 
   Widget _vitalsCell() {
     final v = visit.vitals;
