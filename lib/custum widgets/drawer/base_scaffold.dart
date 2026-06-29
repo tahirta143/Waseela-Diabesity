@@ -21,6 +21,7 @@ import '../../screens/prescription/prescription.dart';
 import '../../screens/prescription/lab_values.dart';
 import '../../screens/prescription/eye_prescription.dart';
 import '../../screens/prescription/vitals.dart';
+import '../../screens/prescription/foot_notes_screen.dart';
 import '../../screens/pharmacy_screens/add_modify_medicines_screen.dart';
 import '../../screens/pharmacy_screens/opening_balances_screen.dart';
 import '../../screens/pharmacy_screens/purchase_posting_screen.dart';
@@ -425,6 +426,9 @@ class _BaseScaffoldState extends State<BaseScaffold> {
         break;
       case 16:
         screen = const FundusExaminationScreen();
+        break;
+      case 26:
+        screen = const AddFootNotesScreen();
         break;
       case 17:
         screen = const AddModifyMedicinesScreen();

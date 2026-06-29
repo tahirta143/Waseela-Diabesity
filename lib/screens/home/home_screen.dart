@@ -22,6 +22,7 @@ import '../prescription/vitals.dart';
 import '../prescription/lab_values.dart';
 import '../prescription/nutrition_screen.dart';
 import '../prescription/fundus_examination_screen.dart';
+import '../prescription/foot_notes_screen.dart';
 import '../consultation_payments/consultation_payments.dart';
 import '../add_expenses/add_expenses.dart';
 import '../shift_management/shift_management.dart';
@@ -101,6 +102,7 @@ class _HomeBodyState extends State<_HomeBody> {
       //   permission: Perm.eyeRecordRead,
       // ),
       const _NavCard(label: "Fundus Exam", desc: "Fundus eye examination", icon: Icons.visibility_outlined, drawerIndex: 16, permission: Perm.fundusRead),
+      const _NavCard(label: "Add Foot Notes", desc: "Patient foot notes", icon: Icons.note_alt_outlined, drawerIndex: 26, permission: Perm.footNotesRead),
       const _NavCard(label: "Consultant Pay", desc: "Doctor payouts", icon: Icons.attach_money_rounded, drawerIndex: 6, permission: Perm.consultantRead),
       const _NavCard(label: "Add Expenses", desc: "Record expenses", icon: Icons.credit_card_rounded, drawerIndex: 2, permission: Perm.expenseRead),
       const _NavCard(label: "Shift Mgmt", desc: "Open/Close shifts", icon: Icons.access_time_rounded, drawerIndex: 7, permission: Perm.opdShiftRead),
@@ -779,6 +781,7 @@ class _ModuleCard extends StatelessWidget {
       case 14: return const LabValuesScreen();
       case 15: return const NutritionScreen();
       case 16: return const FundusExaminationScreen();
+      case 26: return const AddFootNotesScreen();
       case 6: return const ConsultantPaymentsScreen();
       case 2: return const ExpensesScreen();
       case 7: return const ShiftManagementScreen();

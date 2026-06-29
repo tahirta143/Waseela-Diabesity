@@ -142,6 +142,10 @@ class Perm {
   static const fundusRead   = 'PRESCRIPTION.FUNDUS_EXAMINATION.READ';
   static const fundusCreate = 'PRESCRIPTION.FUNDUS_EXAMINATION.CREATE';
 
+  // ─── Prescription (Foot Notes) — NEW ─────────────────────────────────────
+  static const footNotesRead   = 'PRESCRIPTION.FOOT_NOTES.READ';
+  static const footNotesCreate = 'PRESCRIPTION.FOOT_NOTES.CREATE';
+
   // ─── Prescription (Eye) ───────────────────────────────────────────────────
   static const eyeRecordRead        = 'PRESCRIPTION.EYE_RECORD.READ';
   static const eyeRecordUpdate      = 'PRESCRIPTION.EYE_RECORD.UPDATE';

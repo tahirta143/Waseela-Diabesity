@@ -29,8 +29,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
   static const List<int> _opdIndices = [1, 3, 4, 6, 7, 10];
   // Reports dropdown indices: 11
   static const List<int> _reportsIndices = [11];
-  // Prescription dropdown indices: 9, 13, 14, 15, 16
-  static const List<int> _prescriptionIndices = [9, 13, 14, 15, 16];
+  // Prescription dropdown indices: 9, 13, 14, 15, 16, 26
+  static const List<int> _prescriptionIndices = [9, 13, 14, 15, 16, 26];
   // Pharmacy dropdown indices: 17, 18, 19, 20
   static const List<int> _pharmacyIndices = [17, 18, 19, 20];
   // Attendance dropdown indices: 24, 25
@@ -199,6 +199,12 @@ class _CustomDrawerState extends State<CustomDrawer> {
           icon: Icons.visibility_outlined,
           title: 'Fundus Examination',
           index: 16,
+        ),
+      if (perm.canAny([Perm.footNotesRead, Perm.footNotesCreate]))
+        const _DrawerItemData(
+          icon: Icons.note_alt_outlined,
+          title: 'Add Foot Notes',
+          index: 26,
         ),
     ];
 
@@ -530,6 +536,12 @@ class _CustomDrawerState extends State<CustomDrawer> {
           icon: Icons.visibility_outlined,
           title: 'Fundus Examination',
           index: 16,
+        ),
+      if (perm.canAny([Perm.footNotesRead, Perm.footNotesCreate]))
+        _buildDrawerItem(
+          icon: Icons.note_alt_outlined,
+          title: 'Add Foot Notes',
+          index: 26,
         ),
       const Divider(height: 24),
       _buildExitCampItem(context, camp),
