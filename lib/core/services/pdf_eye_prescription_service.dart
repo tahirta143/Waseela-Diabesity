@@ -752,7 +752,7 @@ class PDFEyePrescriptionService {
               campName.toUpperCase(),
               style: pw.TextStyle(
                 font: font,
-                fontSize: 22,
+                fontSize: 12,
                 fontWeight: pw.FontWeight.bold,
                 color: PdfColors.grey900,
               ),

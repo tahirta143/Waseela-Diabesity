@@ -29,7 +29,8 @@ class CampProvider extends ChangeNotifier {
     return (_activeCamp!['camp_name'] ?? _activeCamp!['name'] ?? '').toString();
   }
 
-  String get campLocation => (_activeCamp?['location'] ?? '').toString();
+  String get campLocation =>
+      (_activeCamp?['address'] ?? _activeCamp?['location'] ?? _activeCamp?['venue'] ?? '').toString();
 
   Future<void> initialize() async {
     _loading = true;

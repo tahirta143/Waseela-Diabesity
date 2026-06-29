@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -5,21 +6,37 @@ import '../../models/nutrition_model/nutrition_prescription_model.dart';
 import 'package:intl/intl.dart';
 
 class PDFNutritionService {
-  static Future<void> printPrescription(NutritionPrescriptionModel rx) async {
+  static Future<void> printPrescription(NutritionPrescriptionModel rx, {String? campAddress}) async {
     final pdf = pw.Document();
 
     try {
-      // Use a standard font
-      final font = await PdfGoogleFonts.interRegular();
-      final fontBold = await PdfGoogleFonts.interBold();
+      final font = pw.Font.helvetica();
+      final fontBold = pw.Font.helveticaBold();
+
+      pw.MemoryImage? logoImage;
+      pw.MemoryImage? logo2Image;
+      try {
+        final logoBytes = await rootBundle.load('assets/images/logo.png');
+        logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
+      } catch (e) {
+        // ignore: avoid_print
+        print('Warning: failed to load assets/images/logo.png: $e');
+      }
+      try {
+        final logo2Bytes = await rootBundle.load('assets/images/logo_2.jpeg');
+        logo2Image = pw.MemoryImage(logo2Bytes.buffer.asUint8List());
+      } catch (e) {
+        // ignore: avoid_print
+        print('Warning: failed to load assets/images/logo_2.jpeg: $e');
+      }
 
       pdf.addPage(
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
           margin: const pw.EdgeInsets.all(32),
-          footer: (pw.Context context) => _buildFooter(context, font),
+          footer: (pw.Context context) => _buildFooter(context, font, campAddress: campAddress),
           build: (pw.Context context) => [
-            _buildHeader(rx, font, fontBold),
+            _buildHeader(rx, font, fontBold, logoImage, logo2Image),
             pw.SizedBox(height: 10),
             _buildPatientStrip(rx, font, fontBold),
             pw.SizedBox(height: 10),
@@ -45,7 +62,13 @@ class PDFNutritionService {
     }
   }
 
-  static pw.Widget _buildHeader(NutritionPrescriptionModel rx, pw.Font font, pw.Font fontBold) {
+  static pw.Widget _buildHeader(
+    NutritionPrescriptionModel rx,
+    pw.Font font,
+    pw.Font fontBold,
+    pw.MemoryImage? logoImage,
+    pw.MemoryImage? logo2Image,
+  ) {
     String dateStr;
     try {
       dateStr = rx.createdAt != null && rx.createdAt!.isNotEmpty
@@ -67,21 +90,37 @@ class PDFNutritionService {
       ),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Column(
+          // Left: Logos & Hospital Info
+          pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text(cleanDocName, style: pw.TextStyle(font: fontBold, fontSize: 16, color: PdfColors.blue900)),
-              pw.Text('Clinical Nutritionist', style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey700)),
+              if (logoImage != null) ...[
+                pw.Image(logoImage, height: 40),
+                pw.SizedBox(width: 6),
+              ],
+              if (logo2Image != null) ...[
+                pw.Image(logo2Image, height: 40),
+                pw.SizedBox(width: 8),
+              ],
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text('WASEELA DIABESITY CLINIC',
+                      style: pw.TextStyle(font: fontBold, fontSize: 16, color: PdfColors.blue900)),
+                  pw.Text('Diet & Nutrition Prescription',
+                      style: pw.TextStyle(font: font, fontSize: 9, color: PdfColors.grey700)),
+                  pw.SizedBox(height: 4),
+                  pw.Text(cleanDocName,
+                      style: pw.TextStyle(font: fontBold, fontSize: 11, color: PdfColors.blue900)),
+                  pw.Text('Clinical Nutritionist',
+                      style: pw.TextStyle(font: font, fontSize: 8, color: PdfColors.grey700)),
+                ],
+              ),
             ],
           ),
-          pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.center,
-            children: [
-              pw.Text('HEALTH CARE HOSPITAL', style: pw.TextStyle(font: fontBold, fontSize: 18, color: PdfColors.blue900)),
-              pw.Text('DIET & NUTRITION PRESCRIPTION', style: pw.TextStyle(font: font, fontSize: 10, letterSpacing: 2, color: PdfColors.grey700)),
-            ],
-          ),
+          // Right: MR, Date, Token, Receipt
           pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: [
@@ -298,18 +337,36 @@ class PDFNutritionService {
     );
   }
 
-  static pw.Widget _buildFooter(pw.Context context, pw.Font font) {
-    return pw.Container(
-      alignment: pw.Alignment.centerRight,
-      margin: const pw.EdgeInsets.only(top: 20),
-      padding: const pw.EdgeInsets.only(top: 5),
-      decoration: const pw.BoxDecoration(
-        border: pw.Border(top: pw.BorderSide(color: PdfColors.grey300, width: 0.5)),
-      ),
-      child: pw.Text(
-        'This report is generated electronically and does not require a physical signature. Health Care Hospital.',
-        style: pw.TextStyle(font: font, fontSize: 8, color: PdfColors.grey500),
-      ),
+  static pw.Widget _buildFooter(pw.Context context, pw.Font font, {String? campAddress}) {
+    return pw.Column(
+      mainAxisSize: pw.MainAxisSize.min,
+      children: [
+        if (campAddress != null && campAddress.isNotEmpty)
+          pw.Container(
+            alignment: pw.Alignment.bottomRight,
+            padding: const pw.EdgeInsets.only(bottom: 8),
+            child: pw.Text(
+              campAddress.toUpperCase(),
+              style: pw.TextStyle(
+                font: font,
+                fontSize: 12,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.grey900,
+              ),
+            ),
+          ),
+        pw.Container(
+          alignment: pw.Alignment.center,
+          padding: const pw.EdgeInsets.only(top: 4),
+          decoration: const pw.BoxDecoration(
+            border: pw.Border(top: pw.BorderSide(color: PdfColors.grey400, width: 0.5)),
+          ),
+          child: pw.Text(
+            'This report is not meant to be used for medicolegal purpose(s).',
+            style: pw.TextStyle(font: font, fontSize: 8, color: PdfColors.grey500),
+          ),
+        ),
+      ],
     );
   }
 }

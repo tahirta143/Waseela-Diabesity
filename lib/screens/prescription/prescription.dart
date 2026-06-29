@@ -283,20 +283,11 @@ class _SavePrintButton extends StatelessWidget {
             if (rx != null) {
               String? campInfo;
               if (camp.isCampMode) {
-                final name = camp.campDisplayName;
-                final loc = camp.campLocation;
-                // Try to find a phone number in the activeCamp map if it exists
-                final phone = camp.activeCamp?['phone'] ?? camp.activeCamp?['contact_no'];
-                
-                final buffer = StringBuffer(name);
-                if (loc.isNotEmpty) {
-                  if (buffer.isNotEmpty) buffer.write(', ');
-                  buffer.write(loc);
-                }
-                if (phone != null && phone.toString().isNotEmpty) {
-                  buffer.write(' (${phone.toString()})');
-                }
-                campInfo = buffer.toString();
+                final address = camp.activeCamp?['address'] ??
+                    camp.activeCamp?['location'] ??
+                    camp.activeCamp?['venue'] ??
+                    '';
+                campInfo = address.toString();
               }
               await PDFEyePrescriptionService.printPrescription(rx, patient, campName: campInfo);
             }

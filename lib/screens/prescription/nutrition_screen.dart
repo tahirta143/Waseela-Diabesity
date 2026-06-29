@@ -316,7 +316,16 @@ class _NutritionScreenState extends State<NutritionScreen> {
                 await Future.delayed(const Duration(milliseconds: 300));
                 final fullRx = await provider.fetchPrescriptionById(savedId);
                 if (fullRx != null) {
-                  await PDFNutritionService.printPrescription(fullRx);
+                  final camp = context.read<CampProvider>();
+                  String? campInfo;
+                  if (camp.isCampMode) {
+                    final address = camp.activeCamp?['address'] ??
+                        camp.activeCamp?['location'] ??
+                        camp.activeCamp?['venue'] ??
+                        '';
+                    campInfo = address.toString();
+                  }
+                  await PDFNutritionService.printPrescription(fullRx, campAddress: campInfo);
                 } else {
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
