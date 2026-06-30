@@ -4,6 +4,7 @@ import 'package:animate_do/animate_do.dart';
 import '../../../providers/prescription_provider/prescription_provider.dart';
 import '../../../custum widgets/custom_loader.dart';
 import '../../../core/utils/wait_time_helper.dart';
+import '../../../providers/camp_provider.dart';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const kTeal = Color(0xFF00B5AD);
@@ -34,9 +35,12 @@ class SharedConsultationSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PrescriptionProvider>();
+    final camp = context.watch<CampProvider>();
 
     // Use provided patients or get from provider
-    final sourcePatients = patients ?? provider.getFilteredConsultationPatients(department);
+    final sourcePatients = patients ?? (camp.isCampMode
+        ? provider.consultationPatients
+        : provider.getFilteredConsultationPatients(department));
     final isDataLoading = isLoading ?? provider.isLoadingPatients;
 
     return Container(
@@ -71,7 +75,7 @@ class SharedConsultationSidebar extends StatelessWidget {
                 const Icon(Icons.assignment_ind, color: kWhite, size: 16),
                 const SizedBox(width: 8),
                 Text(
-                  sidebarTitle ?? 'Consultation Patients',
+                  sidebarTitle ?? (camp.isCampMode ? 'Camp Patients' : 'Consultation Patients'),
                   style: const TextStyle(
                     color: kWhite,
                     fontWeight: FontWeight.bold,
@@ -85,7 +89,13 @@ class SharedConsultationSidebar extends StatelessWidget {
                     color: kWhite.withOpacity(0.8),
                     size: 16,
                   ),
-                  onPressed: provider.loadConsultationPatients,
+                  onPressed: () async {
+                    if (camp.isCampMode && camp.campId != null) {
+                      await provider.loadCampPatients(camp.campId!);
+                    } else {
+                      await provider.loadConsultationPatients();
+                    }
+                  },
                   constraints: const BoxConstraints(),
                   padding: EdgeInsets.zero,
                   tooltip: 'Refresh Queue',
@@ -104,7 +114,7 @@ class SharedConsultationSidebar extends StatelessWidget {
                     ),
                   )
                 : sourcePatients.isEmpty
-                ? _buildPlaceholder()
+                ? _buildPlaceholder(context)
                 : ListView.separated(
                     itemCount: sourcePatients.length,
                     separatorBuilder: (_, __) => const Divider(height: 1),
@@ -243,7 +253,8 @@ class SharedConsultationSidebar extends StatelessWidget {
     );
   }
 
-  Widget _buildPlaceholder() {
+  Widget _buildPlaceholder(BuildContext context) {
+    final camp = context.read<CampProvider>();
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -251,7 +262,7 @@ class SharedConsultationSidebar extends StatelessWidget {
           Icon(Icons.history, size: 40, color: kTextMid.withOpacity(0.2)),
           const SizedBox(height: 8),
           Text(
-            'No patients in queue',
+            camp.isCampMode ? 'No camp patients yet' : 'No patients in queue',
             style: TextStyle(
               fontSize: 11,
               color: kTextMid.withOpacity(0.5),
@@ -281,8 +292,11 @@ class SharedConsultationDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PrescriptionProvider>();
+    final camp = context.watch<CampProvider>();
     final isDataLoading = isLoading ?? provider.isLoadingPatients;
-    final sourcePatients = patients ?? provider.getFilteredConsultationPatients(department);
+    final sourcePatients = patients ?? (camp.isCampMode
+        ? provider.consultationPatients
+        : provider.getFilteredConsultationPatients(department));
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -308,7 +322,9 @@ class SharedConsultationDropdown extends StatelessWidget {
                   child: Text(
                     isDataLoading
                         ? 'Loading queue...'
-                        : 'Select Consultation Patient',
+                        : camp.isCampMode
+                            ? 'Select Camp Patient'
+                            : 'Select Consultation Patient',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -391,7 +407,10 @@ class _PatientSelectionDialogState extends State<_PatientSelectionDialog> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PrescriptionProvider>();
-    final allPatients = widget.patients ?? provider.getFilteredConsultationPatients(widget.department);
+    final camp = context.watch<CampProvider>();
+    final allPatients = widget.patients ?? (camp.isCampMode
+        ? provider.consultationPatients
+        : provider.getFilteredConsultationPatients(widget.department));
     final isDataLoading = widget.isLoading ?? provider.isLoadingPatients;
 
     final filteredPatients = _searchQuery.isEmpty
@@ -457,10 +476,10 @@ class _PatientSelectionDialogState extends State<_PatientSelectionDialog> {
                       size: 22,
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        'Consultation Queue',
-                        style: TextStyle(
+                        camp.isCampMode ? 'Camp Queue' : 'Consultation Queue',
+                        style: const TextStyle(
                           color: kWhite,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -532,7 +551,9 @@ class _PatientSelectionDialogState extends State<_PatientSelectionDialog> {
                               const SizedBox(height: 12),
                               Text(
                                 _searchQuery.isEmpty
-                                    ? 'No patients in queue'
+                                    ? camp.isCampMode
+                                        ? 'No camp patients yet'
+                                        : 'No patients in queue'
                                     : 'No matches found',
                                 style: TextStyle(
                                   fontSize: 14,

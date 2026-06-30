@@ -458,7 +458,7 @@ class PrescriptionProvider extends ChangeNotifier {
       String rawDocName = '';
       if (department == 'Nutritionist') {
         rawDocName = activeTeam?['nutritionist']?.toString() ?? '';
-      } else if (department == 'Eye' || department == 'Lab' || department == 'Vitals') {
+      } else if (department == 'Eye' || department == 'Lab' || department == 'Vitals' || department == 'Foot Notes' || department == 'FootNotes') {
         rawDocName = activeTeam?['medical_assistant']?.toString() ?? '';
       } else {
         rawDocName = activeTeam?['medical_officer']?.toString() ?? '';

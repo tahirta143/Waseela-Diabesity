@@ -166,6 +166,8 @@ class _AddFootNotesScreenState extends State<AddFootNotesScreen> {
   Widget build(BuildContext context) {
     final prescriptionProvider = context.watch<PrescriptionProvider>();
     final footnoteProvider = context.watch<FootNoteProvider>();
+    final camp = context.watch<CampProvider>();
+    final isCampMode = camp.isCampMode;
     final isMobile = MediaQuery.of(context).size.width < 900;
     
     final patient = prescriptionProvider.currentPatient;
@@ -202,8 +204,8 @@ class _AddFootNotesScreenState extends State<AddFootNotesScreen> {
                 children: [
                   if (isMobile) ...[
                     SharedConsultationDropdown(
-                      department: 'Prescription',
-                      onSelect: (p) => prescriptionProvider.selectConsultationPatient(p, department: 'Prescription'),
+                      department: isCampMode ? null : 'Prescription',
+                      onSelect: (p) => prescriptionProvider.selectConsultationPatient(p, department: isCampMode ? 'Foot Notes' : 'Prescription'),
                     ),
                     const SizedBox(height: 16),
                   ],
@@ -245,8 +247,8 @@ class _AddFootNotesScreenState extends State<AddFootNotesScreen> {
             Expanded(
               flex: 3,
               child: SharedConsultationSidebar(
-                department: 'Prescription',
-                onSelect: (p) => prescriptionProvider.selectConsultationPatient(p, department: 'Prescription'),
+                department: isCampMode ? null : 'Prescription',
+                onSelect: (p) => prescriptionProvider.selectConsultationPatient(p, department: isCampMode ? 'Foot Notes' : 'Prescription'),
               ),
             ),
         ],

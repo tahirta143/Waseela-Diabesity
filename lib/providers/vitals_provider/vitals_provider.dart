@@ -52,6 +52,10 @@ class VitalsProvider extends ChangeNotifier {
   String _whr = '—';
   int _painScale = 0;
   String _heightUnit = 'in';
+  String? _weightUnit;
+  String? _waistUnit;
+  String? _hipUnit;
+  String? _tempUnit;
   String _bpReadingType = 'regular';
   String _bsrType = 'regular';
 
@@ -71,6 +75,10 @@ class VitalsProvider extends ChangeNotifier {
   String get whr => _whr;
   int get painScale => _painScale;
   String get heightUnit => _heightUnit;
+  String? get weightUnit => _weightUnit;
+  String? get waistUnit => _waistUnit;
+  String? get hipUnit => _hipUnit;
+  String? get tempUnit => _tempUnit;
   String get bpReadingType => _bpReadingType;
   String get bsrType => _bsrType;
 
@@ -216,6 +224,19 @@ class VitalsProvider extends ChangeNotifier {
         _bpReadingType = (data['bp_reading_type'] ?? 'regular').toString();
         final rawBsrType = (data['bsr_type'] ?? '').toString().toLowerCase();
         _bsrType = rawBsrType == 'fasting' ? 'fasting' : 'regular';
+
+        _weightUnit = data['weight_unit']?.toString();
+        if (_weightUnit == null && data['weight'] != null) _weightUnit = 'kg';
+
+        _waistUnit = data['waist_unit']?.toString();
+        if (_waistUnit == null && data['waist'] != null) _waistUnit = 'cm';
+
+        _hipUnit = data['hip_unit']?.toString();
+        if (_hipUnit == null && data['hip'] != null) _hipUnit = 'cm';
+
+        _tempUnit = data['temperature_unit']?.toString();
+        if (_tempUnit == null && data['temperature'] != null) _tempUnit = 'F';
+
         _fillControllers(data);
       } else {
         _clearInputs();
@@ -249,6 +270,10 @@ class VitalsProvider extends ChangeNotifier {
     _bmi = '—';
     _bmr = '—';
     _whr = '—';
+    _weightUnit = null;
+    _waistUnit = null;
+    _hipUnit = null;
+    _tempUnit = null;
     _bsrType = 'regular';
     notifyListeners();
   }
@@ -263,10 +288,25 @@ class VitalsProvider extends ChangeNotifier {
   }
 
   // ─── Calculations ───────────────────────────────────────────────────
+  double _toKg(double val, String? unit) {
+    if (unit == 'lb') {
+      return val * 0.45359237;
+    }
+    return val;
+  }
+
+  double _waistToCm(double val, String? unit) {
+    if (unit == 'in') {
+      return val * 2.54;
+    }
+    return val;
+  }
+
   void _calculateBmiAndBmr() {
-    final w = double.tryParse(controllers['weight']!.text) ?? 0;
+    final wRaw = double.tryParse(controllers['weight']!.text) ?? 0;
     final hRaw = double.tryParse(controllers['height']!.text) ?? 0;
     
+    final w = _toKg(wRaw, _weightUnit);
     double hMeters = 0;
     double hCm = 0;
     
@@ -325,12 +365,51 @@ class VitalsProvider extends ChangeNotifier {
   }
 
   void _calculateWhr() {
-    final waist = double.tryParse(controllers['waist']!.text) ?? 0;
-    final hip = double.tryParse(controllers['hip']!.text) ?? 0;
-    if (waist > 0 && hip > 0) {
-      _whr = (waist / hip).toStringAsFixed(3);
+    final waistRaw = double.tryParse(controllers['waist']!.text) ?? 0;
+    final hipRaw = double.tryParse(controllers['hip']!.text) ?? 0;
+
+    final waistCm = _waistToCm(waistRaw, _waistUnit);
+    final hipCm = _waistToCm(hipRaw, _hipUnit);
+
+    if (waistCm > 0 && hipCm > 0) {
+      _whr = (waistCm / hipCm).toStringAsFixed(3);
     } else {
       _whr = '—';
+    }
+    notifyListeners();
+  }
+
+  void setWeightUnit(String? unit) {
+    _weightUnit = unit;
+    if (unit == null) {
+      controllers['weight']!.clear();
+    }
+    notifyListeners();
+    _calculateBmiAndBmr();
+  }
+
+  void setWaistUnit(String? unit) {
+    _waistUnit = unit;
+    if (unit == null) {
+      controllers['waist']!.clear();
+    }
+    notifyListeners();
+    _calculateWhr();
+  }
+
+  void setHipUnit(String? unit) {
+    _hipUnit = unit;
+    if (unit == null) {
+      controllers['hip']!.clear();
+    }
+    notifyListeners();
+    _calculateWhr();
+  }
+
+  void setTempUnit(String? unit) {
+    _tempUnit = unit;
+    if (unit == null) {
+      controllers['temperature']!.clear();
     }
     notifyListeners();
   }
@@ -439,6 +518,7 @@ class VitalsProvider extends ChangeNotifier {
         mrNumber: _currentPatient!.mrNumber,
         receiptId: _receiptId,
         weight: double.tryParse(controllers['weight']!.text),
+        weightUnit: controllers['weight']!.text.isEmpty ? null : _weightUnit,
         height: double.tryParse(controllers['height']!.text),
         heightUnit: _heightUnit,
         bsr: double.tryParse(controllers['bsr']!.text),
@@ -451,8 +531,11 @@ class VitalsProvider extends ChangeNotifier {
         pulse: int.tryParse(controllers['pulse']!.text),
         spo2: double.tryParse(controllers['spo2']!.text),
         temperature: double.tryParse(controllers['temperature']!.text),
+        temperatureUnit: controllers['temperature']!.text.isEmpty ? null : _tempUnit,
         waist: double.tryParse(controllers['waist']!.text),
+        waistUnit: controllers['waist']!.text.isEmpty ? null : _waistUnit,
         hip: double.tryParse(controllers['hip']!.text),
+        hipUnit: controllers['hip']!.text.isEmpty ? null : _hipUnit,
         whr: double.tryParse(_whr),
         painScale: _painScale,
         remarks: controllers['remarks']!.text.trim().isEmpty ? null : controllers['remarks']!.text.trim(),

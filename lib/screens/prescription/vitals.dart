@@ -306,7 +306,14 @@ class _VitalsForm extends StatelessWidget {
             title: 'BODY MEASUREMENTS',
             icon: Icons.monitor_weight_outlined,
             children: [
-              _VitalCard(label: 'Weight', unit: 'Kgs', controller: provider.controllers['weight']!, icon: Icons.scale_rounded),
+              _UnitPickVitalCard(
+                label: 'Weight',
+                unit: provider.weightUnit,
+                controller: provider.controllers['weight']!,
+                icon: Icons.scale_rounded,
+                unitOptions: const ['kg', 'lb'],
+                onUnitChanged: (val) => provider.setWeightUnit(val),
+              ),
               _VitalCard(
                 label: 'Height', 
                 unit: provider.heightUnit == 'in' ? 'Inches' : 'cm', 
@@ -320,8 +327,22 @@ class _VitalsForm extends StatelessWidget {
               ),
               _VitalComputedCard(label: 'BMI', unit: _getBmiStatus(provider.bmi).label, value: provider.bmi, icon: Icons.speed_rounded, statusColor: _getBmiStatus(provider.bmi).color),
               _VitalComputedCard(label: 'BMR', unit: 'kcal/day', value: provider.bmr, icon: Icons.bolt_rounded, statusColor: kTeal),
-              _VitalCard(label: 'Waist', unit: 'cm', controller: provider.controllers['waist']!, icon: Icons.straighten_rounded),
-              _VitalCard(label: 'Hip', unit: 'cm', controller: provider.controllers['hip']!, icon: Icons.straighten_rounded),
+              _UnitPickVitalCard(
+                label: 'Waist',
+                unit: provider.waistUnit,
+                controller: provider.controllers['waist']!,
+                icon: Icons.straighten_rounded,
+                unitOptions: const ['cm', 'in'],
+                onUnitChanged: (val) => provider.setWaistUnit(val),
+              ),
+              _UnitPickVitalCard(
+                label: 'Hip',
+                unit: provider.hipUnit,
+                controller: provider.controllers['hip']!,
+                icon: Icons.straighten_rounded,
+                unitOptions: const ['cm', 'in'],
+                onUnitChanged: (val) => provider.setHipUnit(val),
+              ),
               _VitalComputedCard(label: 'WHR', unit: _getWhrStatus(provider.whr, provider.currentPatient?.gender).label, value: provider.whr, icon: Icons.donut_large_rounded, statusColor: _getWhrStatus(provider.whr, provider.currentPatient?.gender).color),
             ],
           ),
@@ -334,7 +355,14 @@ class _VitalsForm extends StatelessWidget {
               _VitalCard(label: 'Diastolic', unit: 'mmHg', controller: provider.controllers['diastolic']!, icon: Icons.favorite_outline_rounded),
               _VitalCard(label: 'Pulse', unit: 'bpm', controller: provider.controllers['pulse']!, icon: Icons.monitor_heart_rounded),
               _VitalCard(label: 'SpO2', unit: '%', controller: provider.controllers['spo2']!, icon: Icons.air_rounded),
-              _VitalCard(label: 'Temp', unit: '°F', controller: provider.controllers['temperature']!, icon: Icons.thermostat_rounded),
+              _UnitPickVitalCard(
+                label: 'Temp',
+                unit: provider.tempUnit,
+                controller: provider.controllers['temperature']!,
+                icon: Icons.thermostat_rounded,
+                unitOptions: const ['F', 'C'],
+                onUnitChanged: (val) => provider.setTempUnit(val),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -774,6 +802,164 @@ class _UnitToggle extends StatelessWidget {
           );
         }).toList(),
       ),
+    );
+  }
+}
+
+class _UnitPickVitalCard extends StatelessWidget {
+  final String label;
+  final String? unit;
+  final TextEditingController controller;
+  final IconData icon;
+  final List<String> unitOptions;
+  final Function(String?) onUnitChanged;
+
+  const _UnitPickVitalCard({
+    required this.label,
+    required this.unit,
+    required this.controller,
+    required this.icon,
+    required this.unitOptions,
+    required this.onUnitChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final showPicker = unit == null;
+
+    return Container(
+      height: 75,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: kWhite,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: kTealBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.01),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: showPicker
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  height: 22,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(icon, size: 10, color: kTeal),
+                        const SizedBox(width: 4),
+                        Text(
+                          label.toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.bold,
+                            color: kTextMid,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Row(
+                  children: unitOptions.map((opt) {
+                    return Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: SizedBox(
+                          height: 28,
+                          child: OutlinedButton(
+                            onPressed: () => onUnitChanged(opt),
+                            style: OutlinedButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              backgroundColor: kBg,
+                              side: const BorderSide(color: kTealBorder),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                            ),
+                            child: Text(
+                              opt == 'F' ? '°F' : opt == 'C' ? '°C' : opt.toUpperCase(),
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: kTeal,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  height: 22,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(icon, size: 10, color: kTeal),
+                        const SizedBox(width: 4),
+                        Text(
+                          label.toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.bold,
+                            color: kTextMid,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                TextField(
+                  controller: controller,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: kTextDark,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: '0',
+                    hintStyle: TextStyle(color: kTextMuted.withOpacity(0.5)),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                    suffixText: unit == 'F' ? '°F' : unit == 'C' ? '°C' : unit,
+                    suffixStyle: const TextStyle(
+                      fontSize: 9,
+                      color: kTextMid,
+                      fontWeight: FontWeight.normal,
+                    ),
+                  ),
+                  onChanged: (val) {
+                    if (val.trim().isEmpty) {
+                      onUnitChanged(null);
+                    }
+                  },
+                ),
+              ],
+            ),
     );
   }
 }

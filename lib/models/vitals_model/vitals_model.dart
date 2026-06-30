@@ -3,6 +3,7 @@ class VitalsModel {
   final String mrNumber;
   final String? receiptId;
   final double? weight;
+  final String? weightUnit;
   final double? height;
   final double? bsr;
   final double? bmi;
@@ -12,8 +13,11 @@ class VitalsModel {
   final int? pulse;
   final double? spo2;
   final double? temperature;
+  final String? temperatureUnit;
   final double? waist;
+  final String? waistUnit;
   final double? hip;
+  final String? hipUnit;
   final double? whr;
   final String? heightUnit;
   final String? bpReadingType;
@@ -27,6 +31,7 @@ class VitalsModel {
     required this.mrNumber,
     this.receiptId,
     this.weight,
+    this.weightUnit,
     this.height,
     this.heightUnit = 'in',
     this.bsr,
@@ -39,8 +44,11 @@ class VitalsModel {
     this.pulse,
     this.spo2,
     this.temperature,
+    this.temperatureUnit,
     this.waist,
+    this.waistUnit,
     this.hip,
+    this.hipUnit,
     this.whr,
     this.painScale = 0,
     this.remarks,
@@ -65,6 +73,7 @@ class VitalsModel {
       mrNumber: json['mr_number']?.toString() ?? '',
       receiptId: json['receipt_id']?.toString(),
       weight: parseDouble(json['weight']),
+      weightUnit: json['weight_unit']?.toString(),
       height: parseDouble(json['height']),
       heightUnit: json['height_unit']?.toString() ?? 'in',
       bsr: parseDouble(json['bsr']),
@@ -77,8 +86,11 @@ class VitalsModel {
       pulse: parseInt(json['pulse']),
       spo2: parseDouble(json['spo2']),
       temperature: parseDouble(json['temperature']),
+      temperatureUnit: json['temperature_unit']?.toString(),
       waist: parseDouble(json['waist']),
+      waistUnit: json['waist_unit']?.toString(),
       hip: parseDouble(json['hip']),
+      hipUnit: json['hip_unit']?.toString(),
       whr: parseDouble(json['whr']),
       painScale: parseInt(json['pain_scale']) ?? 0,
       remarks: json['remarks']?.toString(),
@@ -91,6 +103,7 @@ class VitalsModel {
       'mr_number': mrNumber,
       'receipt_id': receiptId,
       'weight': weight,
+      'weight_unit': weightUnit,
       'height': height,
       'height_unit': heightUnit,
       'bsr': bsr,
@@ -103,8 +116,11 @@ class VitalsModel {
       'pulse': pulse,
       'spo2': spo2,
       'temperature': temperature,
+      'temperature_unit': temperatureUnit,
       'waist': waist,
+      'waist_unit': waistUnit,
       'hip': hip,
+      'hip_unit': hipUnit,
       'whr': whr,
       'pain_scale': painScale,
       'remarks': remarks,
