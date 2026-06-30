@@ -854,6 +854,116 @@ class PrescriptionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<int?> createMedicineIfNeeded(String name, String? category, String? dosage) async {
+    final trimmedName = name.trim();
+    if (trimmedName.isEmpty) return null;
+
+    try {
+      final existing = _medicineSearchResults.cast<Map?>().firstWhere(
+        (m) => (m?['medicine_name'] ?? m?['name'] ?? '').toString().toLowerCase() == trimmedName.toLowerCase(),
+        orElse: () => null,
+      );
+
+      if (existing != null) {
+        return existing['id'] is num ? (existing['id'] as num).toInt() : int.tryParse(existing['id'].toString());
+      }
+
+      if (!_connectivity.isOnline.value) {
+        return null;
+      }
+
+      final res = await _apiService.createMedicine({
+        'medicine_name': trimmedName,
+        'category_name': category ?? 'tablet/capsule',
+        'default_dosage': dosage ?? '',
+      });
+
+      if (res['success'] == true) {
+        final newId = res['id'] ?? res['data']?['id'];
+        return newId is num ? newId.toInt() : int.tryParse(newId.toString());
+      }
+    } catch (e) {
+      debugPrint('Failed to create medicine: $e');
+    }
+    return null;
+  }
+
+  Future<bool> addCustomInvestigation(String type, String rawName) async {
+    final name = rawName.trim();
+    if (name.isEmpty) return false;
+
+    // Check if it already exists (case-insensitive)
+    final existingList = type == 'lab'
+        ? _labTests
+        : _radiologyTests.where((t) {
+            final cat = (t['test_category'] ?? t['test_type'] ?? '').toString().toLowerCase();
+            if (type == 'xray') return cat.contains('x-ray') || cat.contains('xray');
+            if (type == 'ultrasound') return cat.contains('ultrasound') || cat.contains('ultra sound');
+            return cat.contains('ct-scan') || cat.contains('ct scan') || cat.contains('ctscan') || cat.contains('ct_scan');
+          }).toList();
+
+    final alreadyExists = existingList.any((t) => t['test_name'].toString().toLowerCase() == name.toLowerCase());
+
+    if (alreadyExists) {
+      // Just toggle selection, don't create it
+      toggleInvestigation(type, name);
+      return true;
+    }
+
+    try {
+      if (!_connectivity.isOnline.value) {
+        // Offline fallback: toggle directly as custom test
+        toggleInvestigation(type, name);
+        return true;
+      }
+
+      if (type == 'lab') {
+        final res = await _apiService.createLabTest({'test_name': name, 'test_rate': 0});
+        if (res['success'] != true) {
+          _errorMessage = res['message'] ?? 'Could not save new lab test';
+          notifyListeners();
+          return false;
+        }
+        final newId = res['id'] ?? res['data']?['id'];
+        final newTest = {'id': newId, 'test_name': name, 'test_rate': 0};
+        _labTests.add(newTest);
+      } else {
+        const categoryMap = {
+          'xray': 'X-Ray',
+          'ultrasound': 'Ultrasound',
+          'ct_scan': 'CT-Scan',
+        };
+        final testCategory = categoryMap[type] ?? 'Radiology';
+        final res = await _apiService.createRadiologyTest({
+          'test_name': name,
+          'test_category': testCategory,
+          'test_rate': 0,
+        });
+        if (res['success'] != true) {
+          _errorMessage = res['message'] ?? 'Could not save new test';
+          notifyListeners();
+          return false;
+        }
+        final newId = res['id'] ?? res['data']?['id'];
+        final newTest = {'id': newId, 'test_name': name, 'test_category': testCategory, 'test_rate': 0};
+        _radiologyTests.add(newTest);
+      }
+
+      // Add to selected investigations
+      final exists = _selectedInvestigations.any((i) => i.investigationType == type && i.testName.toLowerCase() == name.toLowerCase());
+      if (!exists) {
+        _selectedInvestigations.add(PrescriptionInvestigation(investigationType: type, testName: name));
+      }
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Failed to save custom investigation: $e');
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> fetchPredefinedInstructions() async {
     _isLoadingInstructions = true;
     notifyListeners();

@@ -9,6 +9,7 @@ class PrescriptionMedicine {
   final String medicineName;
   final int? medicineId;
   final bool isFormula;
+  final bool isFree;
   final String dosage;
   final double morning;
   final double afternoon;
@@ -25,6 +26,7 @@ class PrescriptionMedicine {
     required this.medicineName,
     this.medicineId,
     this.isFormula = false,
+    this.isFree = false,
     this.dosage = '',
     this.morning = 0,
     this.afternoon = 0,
@@ -42,6 +44,7 @@ class PrescriptionMedicine {
     'medicine_name': medicineName,
     'medicine_id': medicineId,
     'is_formula': isFormula,
+    'is_free': isFree,
     'dosage': dosage,
     'morning': morning,
     'afternoon': afternoon,
@@ -59,6 +62,7 @@ class PrescriptionMedicine {
     medicineName: json['medicine_name'] ?? '',
     medicineId: json['medicine_id'],
     isFormula: (json['is_formula'] == true || json['is_formula'] == 1),
+    isFree: (json['is_free'] == true || json['is_free'] == 1),
     dosage: json['dosage'] ?? '',
     morning: (json['morning'] ?? 0).toDouble(),
     afternoon: (json['afternoon'] ?? 0).toDouble(),

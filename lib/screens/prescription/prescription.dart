@@ -1302,6 +1302,10 @@ class _InvestigationsTabState extends State<_InvestigationsTab> {
                   t['test_name'].toString().toLowerCase().contains(searchQuery.toLowerCase())
                 ).toList();
 
+                final exactMatchExists = tests.any((t) => 
+                  t['test_name'].toString().toLowerCase() == searchQuery.trim().toLowerCase()
+                );
+
                 return AlertDialog(
                   backgroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1316,7 +1320,7 @@ class _InvestigationsTabState extends State<_InvestigationsTab> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           decoration: BoxDecoration(
-                            color: Color(0xFF00B5AD),
+                            color: const Color(0xFF00B5AD),
                             borderRadius: const BorderRadius.only(
                               topLeft: Radius.circular(16),
                               topRight: Radius.circular(16),
@@ -1328,7 +1332,7 @@ class _InvestigationsTabState extends State<_InvestigationsTab> {
                               const SizedBox(width: 8),
                               Text(
                                 'Select $title',
-                                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                               ),
                               const Spacer(),
                               IconButton(
@@ -1361,13 +1365,11 @@ class _InvestigationsTabState extends State<_InvestigationsTab> {
                                 borderSide: BorderSide.none,
                               ),
                               enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(25),
-                                borderSide: BorderSide.none,
-                              ),
+                                  borderRadius: BorderRadius.circular(25),
+                                  borderSide: BorderSide.none),
                               focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(25),
-                                borderSide: BorderSide(color: color, width: 1),
-                              ),
+                                  borderRadius: BorderRadius.circular(25),
+                                  borderSide: BorderSide(color: color, width: 1)),
                             ),
                           ),
                         ),
@@ -1376,11 +1378,30 @@ class _InvestigationsTabState extends State<_InvestigationsTab> {
                         Expanded(
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: filteredTests.isEmpty
+                            child: (filteredTests.isEmpty && (exactMatchExists || searchQuery.trim().isEmpty))
                                 ? const Center(child: Text('No matches found', style: TextStyle(color: Colors.grey)))
                                 : ListView.builder(
-                                    itemCount: filteredTests.length,
+                                    itemCount: filteredTests.length + (!exactMatchExists && searchQuery.trim().isNotEmpty ? 1 : 0),
                                     itemBuilder: (context, index) {
+                                      if (!exactMatchExists && searchQuery.trim().isNotEmpty && index == filteredTests.length) {
+                                        return ListTile(
+                                          dense: true,
+                                          leading: Icon(Icons.add_circle_outline, color: color, size: 18),
+                                          title: Text(
+                                            "Add '${searchQuery.trim()}' as a new test",
+                                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color),
+                                          ),
+                                          onTap: () async {
+                                            final success = await widget.provider.addCustomInvestigation(type, searchQuery.trim());
+                                            if (success) {
+                                              setState(() {
+                                                searchQuery = '';
+                                              });
+                                            }
+                                          },
+                                        );
+                                      }
+
                                       final test = filteredTests[index];
                                       final name = test['test_name'].toString();
                                       final isSelected = widget.provider.selectedInvestigations.any((i) => i.investigationType == type && i.testName == name);
@@ -1998,10 +2019,11 @@ class _VisitRow extends StatelessWidget {
           if (m.morning > 0) _dose(m.morning), if (m.afternoon > 0) _dose(m.afternoon),
           if (m.evening > 0) _dose(m.evening), if (m.night > 0) _dose(m.night),
         ].join('-');
+        final displayName = m.isFree ? '${m.medicineName} (Free Medicine)' : m.medicineName;
         return Padding(padding: const EdgeInsets.only(bottom: 2),
           child: Text.rich(TextSpan(style: const TextStyle(fontSize: 10), children: [
-            TextSpan(text: m.medicineName,
-                style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1F2937))),
+            TextSpan(text: displayName,
+                style: TextStyle(fontWeight: FontWeight.w600, color: m.isFree ? const Color(0xFF047857) : const Color(0xFF1F2937))),
             if (m.isFormula) const TextSpan(text: ' (F)',
                 style: TextStyle(fontSize: 8, color: Color(0xFF16A34A), fontWeight: FontWeight.bold)),
             if (d.isNotEmpty) TextSpan(text: '  $d',
@@ -2079,8 +2101,8 @@ class _VisitRow extends StatelessWidget {
                     _tc('${e.key + 1}', left: true),
                     Padding(padding: const EdgeInsets.symmetric(vertical: 2),
                       child: Text.rich(TextSpan(children: [
-                        TextSpan(text: m.medicineName,
-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF1F2937))),
+                        TextSpan(text: m.isFree ? '${m.medicineName} (Free Medicine)' : m.medicineName,
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: m.isFree ? const Color(0xFF047857) : const Color(0xFF1F2937))),
                         if (m.isFormula) const TextSpan(text: ' (F)',
                             style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Color(0xFF16A34A))),
                       ]))),
@@ -2303,6 +2325,10 @@ class _MedicineSearchAreaState extends State<_MedicineSearchArea> {
   final LayerLink _layerLink = LayerLink();
   OverlayEntry? _overlayEntry;
 
+  bool _isFree = false;
+  int? _selectedMedicineId;
+  String? _selectedMedicineCategory;
+
   String? _morningMealTiming;
   String? _afternoonMealTiming;
   String? _nightMealTiming;
@@ -2368,6 +2394,10 @@ class _MedicineSearchAreaState extends State<_MedicineSearchArea> {
                         text: name,
                         selection: TextSelection.collapsed(offset: name.length),
                       );
+                      setState(() {
+                        _selectedMedicineId = med['id'];
+                        _selectedMedicineCategory = med['category_name'];
+                      });
                       _hideOverlay();
                     },
                   );
@@ -2389,25 +2419,81 @@ class _MedicineSearchAreaState extends State<_MedicineSearchArea> {
         decoration: BoxDecoration(color: kBg, borderRadius: BorderRadius.circular(10), border: Border.all(color: kBorder)),
         child: Column(
           children: [
-            TextField(
-              controller: _searchCtrl,
-              style: const TextStyle(fontSize: 12),
-              textDirection: widget.provider.inputLang == 'ur' ? TextDirection.rtl : TextDirection.ltr,
-              onChanged: (val) {
-                widget.provider.updateMedSearch(val);
-                if (val.isNotEmpty) _showOverlay(); else _hideOverlay();
-              },
-              decoration: InputDecoration(
-                hintText: widget.provider.inputLang == 'ur'
-                    ? (widget.provider.medMode == 'medicine' ? 'دوائی تلاش کریں...' : 'فارمولا تلاش کریں...')
-                    : (widget.provider.medMode == 'medicine' ? 'Search medicine...' : 'Search formula...'),
-                hintTextDirection: widget.provider.inputLang == 'ur' ? TextDirection.rtl : TextDirection.ltr,
-                prefixIcon: Icon(widget.provider.medMode == 'medicine' ? Icons.medical_services_outlined : Icons.science_outlined, size: 16),
-                isDense: true,
-                filled: true,
-                fillColor: kWhite,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: kBorder)),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchCtrl,
+                    style: const TextStyle(fontSize: 12),
+                    textDirection: widget.provider.inputLang == 'ur' ? TextDirection.rtl : TextDirection.ltr,
+                    onChanged: (val) {
+                      widget.provider.updateMedSearch(val);
+                      setState(() {
+                        _selectedMedicineId = null;
+                        _selectedMedicineCategory = null;
+                      });
+                      if (val.isNotEmpty) _showOverlay(); else _hideOverlay();
+                    },
+                    decoration: InputDecoration(
+                      hintText: widget.provider.inputLang == 'ur'
+                          ? (widget.provider.medMode == 'medicine' ? 'دوائی تلاش کریں...' : 'فارمولا تلاش کریں...')
+                          : (widget.provider.medMode == 'medicine' ? 'Search medicine...' : 'Search formula...'),
+                      hintTextDirection: widget.provider.inputLang == 'ur' ? TextDirection.rtl : TextDirection.ltr,
+                      prefixIcon: Icon(widget.provider.medMode == 'medicine' ? Icons.medical_services_outlined : Icons.science_outlined, size: 16),
+                      isDense: true,
+                      filled: true,
+                      fillColor: kWhite,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: kBorder)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _isFree = !_isFree;
+                    });
+                  },
+                  child: Container(
+                    height: 38,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: _isFree ? const Color(0xFFECFDF5) : kWhite,
+                      border: Border.all(color: _isFree ? const Color(0xFF10B981) : kBorder),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: Checkbox(
+                            value: _isFree,
+                            activeColor: const Color(0xFF059669),
+                            checkColor: kWhite,
+                            side: BorderSide(color: _isFree ? const Color(0xFF10B981) : kBorder),
+                            onChanged: (val) {
+                              setState(() {
+                                _isFree = val ?? false;
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        const Text(
+                          'Free',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF047857),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             Row(
@@ -2428,11 +2514,20 @@ class _MedicineSearchAreaState extends State<_MedicineSearchArea> {
                 const SizedBox(width: 8),
                 IconButton.filled(
                   icon: const Icon(Icons.add, size: 18),
-                  onPressed: () {
+                  onPressed: () async {
                     if (_searchCtrl.text.isNotEmpty) {
+                      int? medId = _selectedMedicineId;
+                      if (widget.provider.medMode == 'medicine' && medId == null) {
+                        medId = await widget.provider.createMedicineIfNeeded(
+                          _searchCtrl.text,
+                          _selectedMedicineCategory,
+                          '${_doseCtrls['m']!.text}-${_doseCtrls['a']!.text}-${_doseCtrls['e']!.text}-${_doseCtrls['n']!.text}',
+                        );
+                      }
+
                       final med = PrescriptionMedicine(
                         medicineName: _searchCtrl.text,
-                        medicineId: null,
+                        medicineId: medId,
                         dosage: '${_doseCtrls['m']!.text}-${_doseCtrls['a']!.text}-${_doseCtrls['e']!.text}-${_doseCtrls['n']!.text}',
                         forDays: _doseCtrls['days']!.text,
                         qty: _doseCtrls['qty']!.text,
@@ -2441,6 +2536,7 @@ class _MedicineSearchAreaState extends State<_MedicineSearchArea> {
                         evening: double.tryParse(_doseCtrls['e']!.text) ?? 0,
                         night: double.tryParse(_doseCtrls['n']!.text) ?? 0,
                         isFormula: widget.provider.medMode == 'formula',
+                        isFree: _isFree,
                         morningMealTiming: _morningMealTiming,
                         afternoonMealTiming: _afternoonMealTiming,
                         nightMealTiming: _nightMealTiming,
@@ -2454,6 +2550,9 @@ class _MedicineSearchAreaState extends State<_MedicineSearchArea> {
                       _doseCtrls['days']!.text = '';
                       _doseCtrls['qty']!.text = '';
                       setState(() {
+                        _isFree = false;
+                        _selectedMedicineId = null;
+                        _selectedMedicineCategory = null;
                         _morningMealTiming = null;
                         _afternoonMealTiming = null;
                         _nightMealTiming = null;
@@ -2635,10 +2734,11 @@ class _MedicineTable extends StatelessWidget {
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, idx) {
               final med = provider.prescribedMedicines[idx];
+              final displayName = med.isFree ? '${med.medicineName} (Free Medicine)' : med.medicineName;
               return ListTile(
                 dense: true,
                 visualDensity: VisualDensity.compact,
-                title: Text(med.medicineName, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                title: Text(displayName, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: med.isFree ? const Color(0xFF047857) : kTextDark)),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

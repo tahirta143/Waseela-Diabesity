@@ -140,4 +140,49 @@ class PrescriptionApiService {
       return {'success': false, 'message': e.toString()};
     }
   }
+
+  // ─── POST /api/medicines ─────────────────────────────────────────
+  Future<Map<String, dynamic>> createMedicine(Map<String, dynamic> data) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.post(
+        Uri.parse('${GlobalApi.baseUrl}/medicines'),
+        headers: headers,
+        body: jsonEncode(data),
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  // ─── POST /api/lab/tests ─────────────────────────────────────────
+  Future<Map<String, dynamic>> createLabTest(Map<String, dynamic> data) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.post(
+        Uri.parse('${GlobalApi.baseUrl}/lab/tests'),
+        headers: headers,
+        body: jsonEncode(data),
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  // ─── POST /api/radiology-tests ───────────────────────────────────
+  Future<Map<String, dynamic>> createRadiologyTest(Map<String, dynamic> data) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.post(
+        Uri.parse('${GlobalApi.baseUrl}/radiology-tests'),
+        headers: headers,
+        body: jsonEncode(data),
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
 }
