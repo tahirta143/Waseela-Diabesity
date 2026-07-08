@@ -253,7 +253,7 @@ class _CampDashboardBodyState extends State<_CampDashboardBody> {
                 const SizedBox(width: 12),
                 Expanded(child: _StatCard(title: 'Patients', value: '${_overview['totalPatients'] ?? 0}', icon: Icons.people_outline, color: const Color(0xFF38A169))),
                 const SizedBox(width: 12),
-                Expanded(child: _StatCard(title: 'Prescriptions', value: '${_overview['totalPrescriptions'] ?? 0}', icon: Icons.description_outlined, color: const Color(0xFF805AD5))),
+                Expanded(child: _StatCard(title: 'Prescriptions', value: '${_overview['totalPrescriptions'] ?? 0}', icon: Icons.description_outlined, color: const Color(0xFF00B5AD))),
               ]),
             ),
             const SizedBox(height: 20),
@@ -559,6 +559,10 @@ class _CampFormDialogState extends State<_CampFormDialog> {
   bool _submitting = false;
   String? _error;
 
+  List<Map<String, dynamic>> _allTeams = [];
+  List<String> _assignedTeamNames = [];
+  bool _loadingTeams = true;
+
   bool get _isEdit => widget.existing != null;
 
   @override
@@ -570,6 +574,7 @@ class _CampFormDialogState extends State<_CampFormDialog> {
       final raw = widget.existing!['days']?.toString() ?? '';
       _selectedDays = raw.isEmpty ? [] : raw.split(',').map((d) => d.trim()).where((d) => d.isNotEmpty).toList();
     }
+    _loadTeamsAndAssignments();
   }
 
   @override
@@ -577,6 +582,41 @@ class _CampFormDialogState extends State<_CampFormDialog> {
     _nameCtrl.dispose();
     _locCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadTeamsAndAssignments() async {
+    setState(() => _loadingTeams = true);
+    try {
+      final sync = CampSyncService();
+      final teamsRes = await sync.getAllTeams();
+      final List<Map<String, dynamic>> allTeams = [];
+      if (teamsRes['success'] == true || teamsRes['data'] != null) {
+        final List raw = teamsRes['data'] as List? ?? [];
+        allTeams.addAll(raw.map((t) => Map<String, dynamic>.from(t as Map)));
+      }
+
+      final List<String> assigned = [];
+      if (_isEdit) {
+        final campId = widget.existing!['id'].toString();
+        final campTeamsRes = await sync.getTeamsByCamp(campId);
+        if (campTeamsRes['success'] == true || campTeamsRes['data'] != null) {
+          final List rawCampTeams = campTeamsRes['data'] as List? ?? [];
+          for (var t in rawCampTeams) {
+            final tName = t['team_name']?.toString();
+            if (tName != null) assigned.add(tName);
+          }
+        }
+      }
+
+      setState(() {
+        _allTeams = allTeams;
+        _assignedTeamNames = assigned;
+        _loadingTeams = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading teams/assignments in dialog: $e');
+      setState(() => _loadingTeams = false);
+    }
   }
 
   Future<void> _submit() async {
@@ -599,13 +639,55 @@ class _CampFormDialogState extends State<_CampFormDialog> {
     }
 
     if (!mounted) return;
-    setState(() => _submitting = false);
 
     if (result['success'] == true) {
+      final campId = _isEdit ? widget.existing!['id'].toString() : (result['data']?['id']?.toString() ?? result['id']?.toString() ?? '');
+      
+      if (campId.isNotEmpty) {
+        List<String> currentlyAssigned = [];
+        if (_isEdit) {
+          final campTeamsRes = await sync.getTeamsByCamp(campId);
+          if (campTeamsRes['success'] == true || campTeamsRes['data'] != null) {
+            final List rawCampTeams = campTeamsRes['data'] as List? ?? [];
+            currentlyAssigned = rawCampTeams
+                .map((t) => t['team_name']?.toString() ?? '')
+                .where((name) => name.isNotEmpty)
+                .toList();
+          }
+        }
+
+        final List<Future> assignments = [];
+        for (var tName in _assignedTeamNames) {
+          if (!currentlyAssigned.contains(tName)) {
+            final team = _allTeams.firstWhere((t) => t['team_name'] == tName, orElse: () => {});
+            if (team.isNotEmpty) {
+              assignments.add(sync.assignTeamToCamp(campId, {
+                'team_name': team['team_name'],
+                'medical_officer': team['medical_officer'] ?? '',
+                'nutritionist': team['nutritionist'] ?? '',
+                'medical_assistant': team['medical_assistant'] ?? '',
+              }));
+            }
+          }
+        }
+        try {
+          if (assignments.isNotEmpty) {
+            await Future.wait(assignments);
+          }
+        } catch (e) {
+          debugPrint('Error assigning teams to camp: $e');
+        }
+      }
+
+      if (!mounted) return;
+      setState(() => _submitting = false);
       Navigator.pop(context);
       widget.onSaved();
     } else {
-      setState(() => _error = result['message']?.toString() ?? 'Failed to save');
+      setState(() {
+        _submitting = false;
+        _error = result['message']?.toString() ?? 'Failed to save';
+      });
     }
   }
 
@@ -701,6 +783,67 @@ class _CampFormDialogState extends State<_CampFormDialog> {
                   ),
                   const SizedBox(height: 4),
                   const Text('Leave empty to make this camp available every day', style: TextStyle(fontSize: 10, color: _textLight)),
+                  
+                  // Assign Teams to this Camp
+                  const Divider(height: 28, color: _border),
+                  Row(children: [
+                    const Icon(Icons.groups_2_outlined, size: 14, color: _teal),
+                    const SizedBox(width: 6),
+                    const Text('Assign Teams to this Camp', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _textLight)),
+                  ]),
+                  const SizedBox(height: 8),
+                  if (_loadingTeams)
+                    const Center(child: Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: _teal))))
+                  else if (_allTeams.isEmpty)
+                    const Text(
+                      'No teams available yet. Add a team in the Configure Teams section first.',
+                      style: TextStyle(fontSize: 11, color: _textLight, fontStyle: FontStyle.italic),
+                    )
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _allTeams.map((team) {
+                        final tName = team['team_name']?.toString() ?? '';
+                        final isAssigned = _assignedTeamNames.contains(tName);
+                        return ChoiceChip(
+                          avatar: Icon(
+                            isAssigned ? Icons.check : Icons.groups_outlined,
+                            size: 14,
+                            color: isAssigned ? Colors.white : _teal,
+                          ),
+                          label: Text(
+                            tName,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isAssigned ? Colors.white : _textDark,
+                            ),
+                          ),
+                          selected: isAssigned,
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                _assignedTeamNames.add(tName);
+                              } else {
+                                _assignedTeamNames.remove(tName);
+                              }
+                            });
+                          },
+                          selectedColor: _teal,
+                          backgroundColor: const Color(0xFFF7FAFC),
+                          checkmarkColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color: isAssigned ? _teal : _border,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  const SizedBox(height: 4),
+                  const Text('Select any teams that should work this camp', style: TextStyle(fontSize: 10, color: _textLight)),
                   const SizedBox(height: 20),
 
                   // Actions
@@ -733,9 +876,35 @@ class _CampFormDialogState extends State<_CampFormDialog> {
   }
 }
 
+// ─── Team Palette ─────────────────────────────────────────────────────────────
+class _TeamPalette {
+  final Color primary;
+  final Color bg;
+  final Color text;
+  final Color badgeBg;
+  final Color iconBg;
+
+  const _TeamPalette({
+    required this.primary,
+    required this.bg,
+    required this.text,
+    required this.badgeBg,
+    required this.iconBg,
+  });
+}
+
+const _teamPalettes = [
+  _TeamPalette(
+    primary: Color(0xFF00B5AD),
+    bg: Color(0xFFE6F7F6),
+    text: Color(0xFF007A73),
+    badgeBg: Color(0xFFE6F7F6),
+    iconBg: Color(0xFFE6F7F6),
+  ),
+];
+
+
 // ─── Teams Config Dialog ──────────────────────────────────────────────────────
-/// Mirrors React CampDashboard's isTeamModalOpen section:
-/// Configure Team 1 (blue) & Team 2 (emerald) — staff names + camp assignment.
 class _TeamsConfigDialog extends StatefulWidget {
   final List<Map<String, dynamic>> camps;
   final VoidCallback onSaved;
@@ -751,16 +920,19 @@ class _TeamsConfigDialogState extends State<_TeamsConfigDialog> {
   bool _saving = false;
   String? _error;
 
-  // team1 / team2 state mirrors React teamData
-  Map<String, dynamic> _t1 = {'id': '', 'medical_officer': '', 'nutritionist': '', 'medical_assistant': '', 'camp_id': '', 'assignedCamps': []};
-  Map<String, dynamic> _t2 = {'id': '', 'medical_officer': '', 'nutritionist': '', 'medical_assistant': '', 'camp_id': '', 'assignedCamps': []};
+  List<Map<String, dynamic>> _teams = [];
+  
+  // State for view mode: 'list' | 'add' | 'edit'
+  String _mode = 'list';
+  Map<String, dynamic>? _editingTeam;
+  String? _editingTeamOriginalName;
 
-  final _t1MoCtrl  = TextEditingController();
-  final _t1NutCtrl = TextEditingController();
-  final _t1MaCtrl  = TextEditingController();
-  final _t2MoCtrl  = TextEditingController();
-  final _t2NutCtrl = TextEditingController();
-  final _t2MaCtrl  = TextEditingController();
+  // Controllers for the form
+  final _teamNameCtrl = TextEditingController();
+  final _moCtrl = TextEditingController();
+  final _nutCtrl = TextEditingController();
+  final _maCtrl = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
 
   @override
   void initState() {
@@ -770,325 +942,517 @@ class _TeamsConfigDialogState extends State<_TeamsConfigDialog> {
 
   @override
   void dispose() {
-    _t1MoCtrl.dispose(); _t1NutCtrl.dispose(); _t1MaCtrl.dispose();
-    _t2MoCtrl.dispose(); _t2NutCtrl.dispose(); _t2MaCtrl.dispose();
+    _teamNameCtrl.dispose();
+    _moCtrl.dispose();
+    _nutCtrl.dispose();
+    _maCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _loadTeams() async {
+    if (!mounted) return;
     setState(() { _loading = true; _error = null; });
     try {
       final res = await _sync.getAllTeams();
-      List<dynamic> teams = (res['data'] as List?) ?? [];
-
-      // Ensure Team 1 and Team 2 exist (create if missing)
-      if (!teams.any((t) => t['team_name'] == 'Team 1')) {
-        await _sync.createTeam({'team_name': 'Team 1'});
+      if (!mounted) return;
+      if (res['success'] == true || res['data'] != null) {
+        final rawList = res['data'] as List? ?? [];
+        setState(() {
+          _teams = rawList.map((t) => Map<String, dynamic>.from(t as Map)).toList();
+          _loading = false;
+        });
+      } else {
+        setState(() {
+          _error = res['message']?.toString() ?? 'Failed to load teams';
+          _loading = false;
+        });
       }
-      if (!teams.any((t) => t['team_name'] == 'Team 2')) {
-        await _sync.createTeam({'team_name': 'Team 2'});
-      }
-      final finalRes = await _sync.getAllTeams();
-      teams = (finalRes['data'] as List?) ?? [];
-
-      final t1g = teams.firstWhere((t) => t['team_name'] == 'Team 1', orElse: () => {});
-      final t2g = teams.firstWhere((t) => t['team_name'] == 'Team 2', orElse: () => {});
-
-      // Collect already-assigned camp IDs for each team from stats.camps.teams
-      final t1AssignedCamps = widget.camps
-          .where((c) => (c['teams'] as List?)?.any((t) => t['team_name'] == 'Team 1') == true)
-          .map((c) => c['id'].toString()).toList();
-      final t2AssignedCamps = widget.camps
-          .where((c) => (c['teams'] as List?)?.any((t) => t['team_name'] == 'Team 2') == true)
-          .map((c) => c['id'].toString()).toList();
-
-      setState(() {
-        _t1 = {
-          'id': t1g['id'] ?? '',
-          'medical_officer': t1g['medical_officer'] ?? '',
-          'nutritionist': t1g['nutritionist'] ?? '',
-          'medical_assistant': t1g['medical_assistant'] ?? '',
-          'camp_id': '',
-          'assignedCamps': t1AssignedCamps,
-        };
-        _t2 = {
-          'id': t2g['id'] ?? '',
-          'medical_officer': t2g['medical_officer'] ?? '',
-          'nutritionist': t2g['nutritionist'] ?? '',
-          'medical_assistant': t2g['medical_assistant'] ?? '',
-          'camp_id': '',
-          'assignedCamps': t2AssignedCamps,
-        };
-        _t1MoCtrl.text  = _t1['medical_officer'];
-        _t1NutCtrl.text = _t1['nutritionist'];
-        _t1MaCtrl.text  = _t1['medical_assistant'];
-        _t2MoCtrl.text  = _t2['medical_officer'];
-        _t2NutCtrl.text = _t2['nutritionist'];
-        _t2MaCtrl.text  = _t2['medical_assistant'];
-        _loading = false;
-      });
     } catch (e) {
-      setState(() { _error = 'Failed to load teams: $e'; _loading = false; });
+      if (mounted) {
+        setState(() { _error = 'Failed to load teams: $e'; _loading = false; });
+      }
     }
   }
 
-  Future<void> _save() async {
+  void _switchToList() {
+    setState(() {
+      _mode = 'list';
+      _editingTeam = null;
+      _editingTeamOriginalName = null;
+      _teamNameCtrl.clear();
+      _moCtrl.clear();
+      _nutCtrl.clear();
+      _maCtrl.clear();
+      _error = null;
+    });
+    _loadTeams();
+  }
+
+  void _switchToForm({Map<String, dynamic>? team}) {
+    setState(() {
+      if (team != null) {
+        _mode = 'edit';
+        _editingTeam = team;
+        _editingTeamOriginalName = team['team_name']?.toString();
+        _teamNameCtrl.text = team['team_name']?.toString() ?? '';
+        _moCtrl.text = team['medical_officer']?.toString() ?? '';
+        _nutCtrl.text = team['nutritionist']?.toString() ?? '';
+        _maCtrl.text = team['medical_assistant']?.toString() ?? '';
+      } else {
+        _mode = 'add';
+        _editingTeam = null;
+        _editingTeamOriginalName = null;
+        _teamNameCtrl.clear();
+        _moCtrl.clear();
+        _nutCtrl.clear();
+        _maCtrl.clear();
+      }
+      _error = null;
+    });
+  }
+
+  Future<void> _saveTeam() async {
+    if (!_formKey.currentState!.validate()) return;
     setState(() { _saving = true; _error = null; });
+
+    final payload = {
+      'team_name': _teamNameCtrl.text.trim(),
+      'medical_officer': _moCtrl.text.trim(),
+      'nutritionist': _nutCtrl.text.trim(),
+      'medical_assistant': _maCtrl.text.trim(),
+    };
+
     try {
-      final saves = <Future>[];
-
-      // Update staff info for each team
-      if ((_t1['id'] as String).isNotEmpty) {
-        saves.add(_sync.updateTeam(_t1['id'], {
-          'medical_officer': _t1MoCtrl.text.trim(),
-          'nutritionist': _t1NutCtrl.text.trim(),
-          'medical_assistant': _t1MaCtrl.text.trim(),
-        }));
-      }
-      if ((_t2['id'] as String).isNotEmpty) {
-        saves.add(_sync.updateTeam(_t2['id'], {
-          'medical_officer': _t2MoCtrl.text.trim(),
-          'nutritionist': _t2NutCtrl.text.trim(),
-          'medical_assistant': _t2MaCtrl.text.trim(),
-        }));
+      Map<String, dynamic> response;
+      if (_mode == 'edit') {
+        response = await _sync.updateTeam(_editingTeamOriginalName!, payload);
+      } else {
+        response = await _sync.createTeam(payload);
       }
 
-      // Assign to new camp if selected (and not already assigned)
-      final t1Assigned = List<String>.from(_t1['assignedCamps'] ?? []);
-      final t2Assigned = List<String>.from(_t2['assignedCamps'] ?? []);
-
-      if ((_t1['camp_id'] as String).isNotEmpty && !t1Assigned.contains(_t1['camp_id'])) {
-        saves.add(_sync.assignTeamToCamp(_t1['camp_id'], {
-          'team_name': 'Team 1',
-          'medical_officer': _t1MoCtrl.text.trim(),
-          'nutritionist': _t1NutCtrl.text.trim(),
-          'medical_assistant': _t1MaCtrl.text.trim(),
-        }));
-      }
-      if ((_t2['camp_id'] as String).isNotEmpty && !t2Assigned.contains(_t2['camp_id'])) {
-        saves.add(_sync.assignTeamToCamp(_t2['camp_id'], {
-          'team_name': 'Team 2',
-          'medical_officer': _t2MoCtrl.text.trim(),
-          'nutritionist': _t2NutCtrl.text.trim(),
-          'medical_assistant': _t2MaCtrl.text.trim(),
-        }));
-      }
-
-      await Future.wait(saves);
       if (!mounted) return;
-      Navigator.pop(context);
-      widget.onSaved();
+      
+      final isOk = response['success'] == true || response['ok'] == true;
+      if (isOk) {
+        _switchToList();
+        widget.onSaved();
+      } else {
+        setState(() {
+          _error = response['message']?.toString() ?? 'Failed to save team';
+          _saving = false;
+        });
+      }
     } catch (e) {
-      setState(() { _error = 'Failed to save teams: $e'; _saving = false; });
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to save team: $e';
+          _saving = false;
+        });
+      }
     }
+  }
+
+  Widget _buildTeamCard(Map<String, dynamic> team, int index) {
+    final teamName = team['team_name']?.toString() ?? '';
+    final assignedCamps = widget.camps.where((c) {
+      final teamsList = c['teams'] as List?;
+      return teamsList?.any((t) => t['team_name'] == teamName) ?? false;
+    }).toList();
+
+    final palette = _teamPalettes[index % _teamPalettes.length];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEDF2F7)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(11),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: palette.primary, width: 4)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: palette.bg,
+                  border: Border(bottom: BorderSide(color: palette.primary.withValues(alpha: 0.1))),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: palette.iconBg,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(Icons.groups_outlined, size: 16, color: palette.text),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            teamName,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: _textDark,
+                            ),
+                          ),
+                          Text(
+                            '${assignedCamps.length} camp${assignedCamps.length != 1 ? "s" : ""} assigned',
+                            style: const TextStyle(fontSize: 11, color: _textLight),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () => _switchToForm(team: team),
+                      icon: Icon(Icons.edit_outlined, size: 16, color: palette.text),
+                      tooltip: 'Edit team',
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Roles list
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    _buildRoleRow('Medical Officer', team['medical_officer']?.toString()),
+                    const Divider(height: 12, color: _border),
+                    _buildRoleRow('Nutritionist', team['nutritionist']?.toString()),
+                    const Divider(height: 12, color: _border),
+                    _buildRoleRow('Med. Assistant', team['medical_assistant']?.toString()),
+                  ],
+                ),
+              ),
+
+              // Assigned camps badges
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8FAFB),
+                  border: Border(top: BorderSide(color: _border)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'ASSIGNED CAMPS',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: _textLight,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    if (assignedCamps.isEmpty)
+                      const Text(
+                        'No camps assigned yet',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontStyle: FontStyle.italic,
+                          color: Color(0xFFCBD5E0),
+                        ),
+                      )
+                    else
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: assignedCamps.map((camp) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: palette.badgeBg,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: palette.primary.withValues(alpha: 0.2)),
+                            ),
+                            child: Text(
+                              (camp['name'] ?? 'Camp').toString(),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: palette.text,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoleRow(String role, String? name) {
+    final hasName = name != null && name.trim().isNotEmpty;
+    return Row(
+      children: [
+        Expanded(
+          flex: 2,
+          child: Text(
+            role,
+            style: const TextStyle(fontSize: 11, color: _textLight, fontWeight: FontWeight.w500),
+          ),
+        ),
+        Expanded(
+          flex: 3,
+          child: Text(
+            hasName ? name : '—',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: hasName ? _textDark : const Color(0xFFCBD5E0),
+              fontStyle: hasName ? FontStyle.normal : FontStyle.italic,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFormView() {
+    final isEdit = _mode == 'edit';
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Team Name
+          const Text(
+            'Team Name *',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _textLight),
+          ),
+          const SizedBox(height: 6),
+          TextFormField(
+            controller: _teamNameCtrl,
+            validator: (v) => v?.trim().isEmpty == true ? 'Required' : null,
+            style: const TextStyle(fontSize: 13),
+            enabled: !isEdit,
+            decoration: InputDecoration(
+              hintText: 'e.g. Team Alpha',
+              hintStyle: const TextStyle(fontSize: 12, color: Color(0xFFBDBDBD)),
+              filled: true,
+              fillColor: isEdit ? const Color(0xFFEDF2F7) : const Color(0xFFF8FAFB),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _teal, width: 1.5)),
+              errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE53E3E))),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Medical Officer
+          const Text(
+            'Medical Officer',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _textLight),
+          ),
+          const SizedBox(height: 6),
+          TextFormField(
+            controller: _moCtrl,
+            style: const TextStyle(fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'e.g. Dr. Ayesha Khan',
+              hintStyle: const TextStyle(fontSize: 12, color: Color(0xFFBDBDBD)),
+              filled: true,
+              fillColor: const Color(0xFFF8FAFB),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _teal, width: 1.5)),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Nutritionist
+          const Text(
+            'Nutritionist',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _textLight),
+          ),
+          const SizedBox(height: 6),
+          TextFormField(
+            controller: _nutCtrl,
+            style: const TextStyle(fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'e.g. Sara Ahmed',
+              hintStyle: const TextStyle(fontSize: 12, color: Color(0xFFBDBDBD)),
+              filled: true,
+              fillColor: const Color(0xFFF8FAFB),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _teal, width: 1.5)),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Medical Assistant
+          const Text(
+            'Medical Assistant',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _textLight),
+          ),
+          const SizedBox(height: 6),
+          TextFormField(
+            controller: _maCtrl,
+            style: const TextStyle(fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'e.g. Bilal Hussain',
+              hintStyle: const TextStyle(fontSize: 12, color: Color(0xFFBDBDBD)),
+              filled: true,
+              fillColor: const Color(0xFFF8FAFB),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _teal, width: 1.5)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final isList = _mode == 'list';
+    final titleText = isList 
+        ? 'Configure Teams' 
+        : (_mode == 'edit' ? 'Edit Team' : 'Create New Team');
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 20, 12, 16),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF7FAFC),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              border: Border(bottom: BorderSide(color: _border)),
-            ),
-            child: Row(children: [
-              const Icon(Icons.groups_2_outlined, color: _teal, size: 22),
-              const SizedBox(width: 10),
-              const Expanded(child: Text('Configure Teams', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _textDark))),
-              IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close, color: _textLight, size: 20)),
-            ]),
-          ),
-
-          // Body
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: _loading
-                  ? const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator(color: _teal)))
-                  : Column(children: [
-                      if (_error != null)
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(color: const Color(0xFFFFF5F5), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFFEB2B2))),
-                          child: Text(_error!, style: const TextStyle(color: Color(0xFFE53E3E), fontSize: 12)),
-                        ),
-                      _buildTeamSection('team1'),
-                      const SizedBox(height: 16),
-                      _buildTeamSection('team2'),
-                    ]),
-            ),
-          ),
-
-          // Footer
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-            decoration: const BoxDecoration(border: Border(top: BorderSide(color: _border))),
-            child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel', style: TextStyle(color: _textLight)),
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 12, 16),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF7FAFC),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                border: Border(bottom: BorderSide(color: _border)),
               ),
-              const SizedBox(width: 8),
-              ElevatedButton.icon(
-                onPressed: _saving || _loading ? null : _save,
-                icon: _saving
-                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.check, size: 16),
-                label: const Text('Save Teams', style: TextStyle(fontSize: 13)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _teal, foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                ),
+              child: Row(
+                children: [
+                  const Icon(Icons.groups_2_outlined, color: _teal, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      titleText,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _textDark),
+                    ),
+                  ),
+                  if (isList)
+                    IconButton(
+                      onPressed: () => _switchToForm(),
+                      icon: const Icon(Icons.add, color: _teal, size: 20),
+                      tooltip: 'Add Team',
+                    ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, color: _textLight, size: 20),
+                  ),
+                ],
               ),
-            ]),
-          ),
-        ]),
-      ),
-    );
-  }
+            ),
 
-  Widget _buildTeamSection(String key) {
-    final isTeam1 = key == 'team1';
-    final team    = isTeam1 ? _t1 : _t2;
-    final label   = isTeam1 ? 'Team 1' : 'Team 2';
-    
-    // Harmonized app color theme (Teal)
-    const borderColor = Color(0xFFB2EBE8);
-    const headerBg = _tealLight;
-    const accent = _teal;
-
-    final moCtrl  = isTeam1 ? _t1MoCtrl  : _t2MoCtrl;
-    final nutCtrl = isTeam1 ? _t1NutCtrl : _t2NutCtrl;
-    final maCtrl  = isTeam1 ? _t1MaCtrl  : _t2MaCtrl;
-    final assigned = List<String>.from(team['assignedCamps'] ?? []);
-    final unassigned = widget.camps.where((c) => !assigned.contains(c['id']?.toString())).toList();
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: borderColor),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Team header with assigned camp badges
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: const BoxDecoration(
-            color: headerBg,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(13)),
-            border: Border(bottom: BorderSide(color: borderColor)),
-          ),
-          child: Row(children: [
-            const Icon(Icons.groups_2_outlined, size: 16, color: accent),
-            const SizedBox(width: 6),
-            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: accent)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: assigned.isEmpty
-                    ? const Text('No camps assigned', style: TextStyle(fontSize: 10, color: _textLight, fontStyle: FontStyle.italic))
-                    : Wrap(
-                        spacing: 4,
-                        runSpacing: 4,
-                        alignment: WrapAlignment.end,
-                        children: assigned.map((cid) {
-                          final name = widget.camps.firstWhere((c) => c['id']?.toString() == cid, orElse: () => {'name': 'Camp'})['name'] ?? 'Camp';
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: accent.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: accent.withValues(alpha: 0.4)),
+            // Body
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: _loading
+                    ? const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator(color: _teal)))
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_error != null)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(color: const Color(0xFFFFF5F5), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFFEB2B2))),
+                              child: Text(_error!, style: const TextStyle(color: Color(0xFFE53E3E), fontSize: 12)),
                             ),
-                            child: Text(name.toString(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: accent)),
-                          );
-                        }).toList(),
+                          if (isList)
+                            if (_teams.isEmpty)
+                              const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(40),
+                                  child: Text(
+                                    'No teams created yet. Click + to add one.',
+                                    style: TextStyle(color: _textLight, fontSize: 13, fontStyle: FontStyle.italic),
+                                  ),
+                                ),
+                              )
+                            else
+                              ...List.generate(
+                                _teams.length,
+                                (index) => _buildTeamCard(_teams[index], index),
+                              )
+                          else
+                            _buildFormView(),
+                        ],
                       ),
               ),
             ),
-          ]),
-        ),
 
-        // Staff fields
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(children: [
-            Row(children: [
-              Expanded(child: _staffField('Medical Officer', moCtrl, accent)),
-              const SizedBox(width: 10),
-              Expanded(child: _staffField('Nutritionist', nutCtrl, accent)),
-              const SizedBox(width: 10),
-              Expanded(child: _staffField('Medical Asst.', maCtrl, accent)),
-            ]),
-            const SizedBox(height: 12),
-
-            // Assign to new camp
-            Row(children: [
-              Icon(Icons.location_on_outlined, size: 14, color: accent),
-              const SizedBox(width: 4),
-              Text(
-                unassigned.isEmpty ? 'Assigned to all camps' : 'Assign to Camp',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _textLight),
+            // Footer
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              decoration: const BoxDecoration(border: Border(top: BorderSide(color: _border))),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: isList ? () => Navigator.pop(context) : _switchToList,
+                    child: Text(isList ? 'Close' : 'Cancel', style: const TextStyle(color: _textLight)),
+                  ),
+                  if (!isList) ...[
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: _saving ? null : _saveTeam,
+                      icon: _saving
+                          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.check, size: 16),
+                      label: Text(_mode == 'edit' ? 'Save Changes' : 'Create Team', style: const TextStyle(fontSize: 13)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _teal,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ]),
-            const SizedBox(height: 6),
-            if (unassigned.isNotEmpty)
-              DropdownButtonFormField<String>(
-                initialValue: (team['camp_id'] as String).isEmpty ? null : team['camp_id'],
-                decoration: InputDecoration(
-                  filled: true, fillColor: const Color(0xFFF8FAFB),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: accent, width: 1.5)),
-                ),
-                hint: const Text('— Select a camp —', style: TextStyle(fontSize: 12)),
-                items: unassigned.map((camp) {
-                  return DropdownMenuItem<String>(
-                    value: camp['id']?.toString() ?? '',
-                    child: Text(camp['name']?.toString() ?? 'Camp', style: const TextStyle(fontSize: 12)),
-                  );
-                }).toList(),
-                onChanged: (v) => setState(() {
-                  if (isTeam1) {
-                    _t1['camp_id'] = v ?? '';
-                  } else {
-                    _t2['camp_id'] = v ?? '';
-                  }
-                }),
-              )
-            else
-              Text('This team is already assigned to all available camps.', style: TextStyle(fontSize: 11, color: accent, fontStyle: FontStyle.italic)),
-          ]),
-        ),
-      ]),
-    );
-  }
-
-  Widget _staffField(String label, TextEditingController ctrl, Color accent) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: _textLight)),
-      const SizedBox(height: 4),
-      TextFormField(
-        controller: ctrl,
-        style: const TextStyle(fontSize: 12),
-        decoration: InputDecoration(
-          hintText: label,
-          hintStyle: const TextStyle(fontSize: 11, color: Color(0xFFBDBDBD)),
-          filled: true, fillColor: const Color(0xFFF8FAFB),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: accent, width: 1.5)),
+            ),
+          ],
         ),
       ),
-    ]);
+    );
   }
 }
