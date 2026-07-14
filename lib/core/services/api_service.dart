@@ -175,4 +175,46 @@ class ApiService {
       return {'success': false, 'message': 'Failed to change password: $e'};
     }
   }
+
+  // ─── POST /api/auth/forgot-password ────────────────────────────
+  Future<Map<String, dynamic>> forgotPassword(String loginIdentifier) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('${GlobalApi.baseUrl}/auth/forgot-password'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'loginIdentifier': loginIdentifier}),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to send OTP: $e'};
+    }
+  }
+
+  // ─── POST /api/auth/reset-password ─────────────────────────────
+  Future<Map<String, dynamic>> resetPassword(
+    String loginIdentifier,
+    String otp,
+    String newPassword,
+  ) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('${GlobalApi.baseUrl}/auth/reset-password'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'loginIdentifier': loginIdentifier,
+              'otp': otp,
+              'new_password': newPassword,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to reset password: $e'};
+    }
+  }
 }
